@@ -139,17 +139,6 @@ void notifyClients() {
   AccessPoint::WebSocketBroadcast(String(ledState));
 }
 
-void handleWebSocketMessage(AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len) {
-  AwsFrameInfo *info = (AwsFrameInfo*)arg;
-  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-    data[len] = 0;
-    if (strcmp((char*)data, "toggle") == 0) {
-      ledState = !ledState;
-      notifyClients();
-    }
-  }
-}
-
 String processor(const String& var){
   Serial.println(var);
   if(var == "STATE"){
@@ -163,6 +152,44 @@ String processor(const String& var){
   return String();
 }
 
+void handleWebServerGetRoot(AsyncWebServerRequest *request) {
+  request->send_P(200, "text/html", index_html, processor);
+}
+void handleWebServerPostWifi(AsyncWebServerRequest *request) {
+  String ssid;
+  String password;
+  if (request->hasParam("ssid", true)) {
+    ssid = request->getParam("ssid", true)->value();
+  }
+  if (request->hasParam("password", true)) {
+    password = request->getParam("password", true)->value();
+  }
+  request->send_P(200, "text/html", index_html, processor);
+}
+
+void handleWebSocketClientConnected(AsyncWebSocketClient* client) {
+  Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+}
+void handleWebSocketClientDisconnected(AsyncWebSocketClient* client) {
+  Serial.printf("WebSocket client #%u disconnected\n", client->id());
+}
+void handleWebSocketClientMessage(AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len) {
+  AwsFrameInfo *info = (AwsFrameInfo*)arg;
+  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+    data[len] = 0;
+    if (strcmp((char*)data, "toggle") == 0) {
+      ledState = !ledState;
+      notifyClients();
+    }
+  }
+}
+void handleWebSocketClientPong(AsyncWebSocketClient* client) {
+  Serial.printf("WebSocket client #%u pong received\n", client->id());
+}
+void handleWebSocketClientError(AsyncWebSocketClient* client, uint16_t code, const String& message) {
+  Serial.printf("WebSocket client #%u error %u: %s\n", client->id(), code, message.c_str());
+}
+
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
@@ -171,37 +198,27 @@ void setup(){
   digitalWrite(ledPin, LOW);
 
   AccessPoint::SetWebSocketCallbacks({
-    [](AsyncWebSocketClient* client){ Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str()); },
-    [](AsyncWebSocketClient* client){ Serial.printf("WebSocket client #%u disconnected\n", client->id()); },
-    handleWebSocketMessage,
-    [](AsyncWebSocketClient* client){},
-    [](AsyncWebSocketClient* client, uint16_t code, const String& message){}
+    handleWebSocketClientConnected,
+    handleWebSocketClientDisconnected,
+    handleWebSocketClientMessage,
+    handleWebSocketClientPong,
+    handleWebSocketClientError
   });
 
   AsyncCallbackWebHandler rootHandler = AsyncCallbackWebHandler();
   rootHandler.setUri("/");
-  rootHandler.onRequest([](AsyncWebServerRequest *request){
-    request->send_P(200, "text/html", index_html, processor);
-  });
+  rootHandler.setMethod(HTTP_GET);
+  rootHandler.onRequest(handleWebServerGetRoot);
 
   AsyncCallbackWebHandler wifiHandler = AsyncCallbackWebHandler();
   wifiHandler.setUri("/wifi");
-  wifiHandler.onRequest([](AsyncWebServerRequest *request){
-    String ssid;
-    String password;
-    if (request->hasParam("ssid", true)) {
-      ssid = request->getParam("ssid", true)->value();
-    }
-    if (request->hasParam("password", true)) {
-      password = request->getParam("password", true)->value();
-    }
-    request->send_P(200, "text/html", index_html, processor);
-  });
+  wifiHandler.setMethod(HTTP_POST);
+  wifiHandler.onRequest(handleWebServerPostWifi);
 
-  AccessPoint::Start(std::vector<AsyncCallbackWebHandler>({
+  AccessPoint::Start({
     rootHandler,
     wifiHandler
-  }));
+  });
 }
 
 void loop() {

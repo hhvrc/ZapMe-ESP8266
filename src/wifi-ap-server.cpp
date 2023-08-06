@@ -43,6 +43,8 @@ bool AccessPoint::Start(const std::vector<AsyncCallbackWebHandler>& handlers) {
 
     Instance = std::make_unique<AP_Backend>(handlers);
 
+    Instance->_webServer.begin();
+
     return true;
 }
 
