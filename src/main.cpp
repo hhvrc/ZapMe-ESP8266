@@ -1,5 +1,6 @@
 #include <ESP8266WiFi.h>
 
+#include "config.hpp"
 #include "wifi-ap-server.hpp"
 #include "serializers/caixianlin-serialize.hpp"
 
@@ -135,10 +136,6 @@ const char index_html[] PROGMEM = R"rawliteral(
 </html>
 )rawliteral";
 
-void notifyClients() {
-  AccessPoint::WebSocketBroadcast(String(ledState));
-}
-
 String processor(const String& var){
   Serial.println(var);
   if(var == "STATE"){
@@ -155,6 +152,20 @@ String processor(const String& var){
 void handleWebServerGetRoot(AsyncWebServerRequest *request) {
   request->send_P(200, "text/html", index_html, processor);
 }
+void handleWebServerGetWifi(AsyncWebServerRequest *request) {
+  auto config = Config::LoadReadOnly();
+
+  String str = "";
+  for (std::size_t i = 0; i < 4; i++) {
+    const char* ssid = config->wifi.networks[i].ssid;
+    if (ssid[0] == '\0') {
+      continue;
+    }
+    str += String(ssid) + "\n";
+  }
+
+  request->send(200, "text/plain", str);
+}
 void handleWebServerPostWifi(AsyncWebServerRequest *request) {
   String ssid;
   String password;
@@ -164,6 +175,13 @@ void handleWebServerPostWifi(AsyncWebServerRequest *request) {
   if (request->hasParam("password", true)) {
     password = request->getParam("password", true)->value();
   }
+
+  auto config = Config::LoadReadWrite();
+
+  config->wifi.networks[0].flags = 0;
+  strcpy(config->wifi.networks[0].ssid, ssid.c_str());
+  strcpy(config->wifi.networks[0].password, password.c_str());
+
   request->send_P(200, "text/html", index_html, processor);
 }
 
@@ -179,7 +197,8 @@ void handleWebSocketClientMessage(AsyncWebSocketClient* client, AwsEventType typ
     data[len] = 0;
     if (strcmp((char*)data, "toggle") == 0) {
       ledState = !ledState;
-      notifyClients();
+      digitalWrite(ledPin, ledState);
+      AccessPoint::WebSocketBroadcast(String(ledState));
     }
   }
 }
@@ -191,8 +210,10 @@ void handleWebSocketClientError(AsyncWebSocketClient* client, uint16_t code, con
 }
 
 void setup(){
-  // Serial port for debugging purposes
   Serial.begin(115200);
+
+  Config::Migrate();
+  auto config = Config::LoadReadOnly();
 
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, LOW);
@@ -210,18 +231,29 @@ void setup(){
   rootHandler.setMethod(HTTP_GET);
   rootHandler.onRequest(handleWebServerGetRoot);
 
-  AsyncCallbackWebHandler wifiHandler = AsyncCallbackWebHandler();
-  wifiHandler.setUri("/wifi");
-  wifiHandler.setMethod(HTTP_POST);
-  wifiHandler.onRequest(handleWebServerPostWifi);
+  AsyncCallbackWebHandler wifiGetHandler = AsyncCallbackWebHandler();
+  wifiGetHandler.setUri("/wifi");
+  wifiGetHandler.setMethod(HTTP_GET);
+  wifiGetHandler.onRequest(handleWebServerGetWifi);
 
-  AccessPoint::Start({
-    rootHandler,
-    wifiHandler
-  });
+  AsyncCallbackWebHandler wifiPostHandler = AsyncCallbackWebHandler();
+  wifiPostHandler.setUri("/wifi");
+  wifiPostHandler.setMethod(HTTP_POST);
+  wifiPostHandler.onRequest(handleWebServerPostWifi);
+
+  AccessPoint::Start(
+    config->wifi.apName,
+    config->wifi.apPassword,
+    {
+      rootHandler,
+      wifiGetHandler,
+      wifiPostHandler
+    }
+  );
 }
 
 void loop() {
-  AccessPoint::RunChores();
-  digitalWrite(ledPin, ledState);
+  if (AccessPoint::IsRunning()) {
+    AccessPoint::RunChores();
+  }
 }
