@@ -1,6 +1,9 @@
 #include <ESP8266WiFi.h>
+#include <EEPROM.h>
 
 #include "config.hpp"
+#include "sdcard.hpp"
+#include "logger.hpp"
 #include "wifi-ap-server.hpp"
 #include "serializers/caixianlin-serialize.hpp"
 
@@ -137,7 +140,6 @@ const char index_html[] PROGMEM = R"rawliteral(
 )rawliteral";
 
 String processor(const String& var){
-  Serial.println(var);
   if(var == "STATE"){
     if (ledState){
       return "ON";
@@ -186,10 +188,14 @@ void handleWebServerPostWifi(AsyncWebServerRequest *request) {
 }
 
 void handleWebSocketClientConnected(AsyncWebSocketClient* client) {
-  Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+  char buf[64];
+  sprintf(buf, "WebSocket client #%u connected from %s", client->id(), client->remoteIP().toString().c_str());
+  Logger::Log(buf);
 }
 void handleWebSocketClientDisconnected(AsyncWebSocketClient* client) {
-  Serial.printf("WebSocket client #%u disconnected\n", client->id());
+  char buf[64];
+  sprintf(buf, "WebSocket client #%u disconnected", client->id());
+  Logger::Log(buf);
 }
 void handleWebSocketClientMessage(AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
@@ -203,20 +209,87 @@ void handleWebSocketClientMessage(AsyncWebSocketClient* client, AwsEventType typ
   }
 }
 void handleWebSocketClientPong(AsyncWebSocketClient* client) {
-  Serial.printf("WebSocket client #%u pong received\n", client->id());
+  char buf[64];
+  sprintf(buf, "WebSocket client #%u pong received", client->id());
+  Logger::Log(buf);
 }
 void handleWebSocketClientError(AsyncWebSocketClient* client, uint16_t code, const String& message) {
-  Serial.printf("WebSocket client #%u error %u: %s\n", client->id(), code, message.c_str());
+  char buf[64];
+  sprintf(buf, "WebSocket client #%u error %u: %s", client->id(), code, message.c_str());
+  Logger::Log(buf);
+}
+
+// Blinks forever in a error pattern
+void blinkError(int i) {
+  while (true) {
+    for (int j = 0; j < i; j++) {
+      digitalWrite(ledPin, HIGH);
+      delay(200);
+      digitalWrite(ledPin, LOW);
+      delay(200);
+    }
+    delay(2000);
+  }
 }
 
 void setup(){
-  Serial.begin(115200);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
+
+  auto [sd, sdError] = SDCard();
+  switch (sdError)
+  {
+  case SDCardError::None:
+    break;
+  case SDCardError::InitializationFailed:
+    blinkError(1);
+  case SDCardError::RootDirectoryNotFound:
+    blinkError(2);
+  default:
+    blinkError(3);
+  }
+
+  auto loggerError = Logger::Initialize();
+  switch (loggerError)
+  {
+  case Logger::InitializationError::None:
+    break;
+  case Logger::InitializationError::SDCardError:
+    blinkError(4);
+  case Logger::InitializationError::FileSystemError:
+    blinkError(5);
+  default:
+    blinkError(6);
+  }
+
+  Logger::Log("ZapMe starting up");
+
+  // Overwrite the flash memory with the contents of flash_overwrite.bin if it exists
+  FsFile flashOverwriteFile = sd->open("/flash_overwrite.bin", O_READ);
+  if (flashOverwriteFile) {
+    if (flashOverwriteFile.size() > 4096) {
+      Logger::Log("flash_overwrite.bin is too large");
+      blinkError(1);
+    }
+
+    // If the file exists, overwrite the flash memory with its contents
+    Logger::Log("Overwriting flash memory with contents of flash_overwrite.bin");
+
+    EEPROM.begin(flashOverwriteFile.size());
+    flashOverwriteFile.readBytes(EEPROM.getDataPtr(), flashOverwriteFile.size());
+    EEPROM.end();
+    flashOverwriteFile.close();
+
+    Logger::Log("Done");
+
+    // Delete the file
+    sd->remove("/flash_overwrite.bin");
+
+    Logger::Log("Deleted flash_overwrite.bin");
+  }
 
   Config::Migrate();
   auto config = Config::LoadReadOnly();
-
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, LOW);
 
   AccessPoint::SetWebSocketCallbacks({
     handleWebSocketClientConnected,
