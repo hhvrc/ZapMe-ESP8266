@@ -5,14 +5,16 @@
 #include <memory>
 #include <vector>
 
+#include "sdcard_webhandler.hpp"
+#include "logger.hpp"
 #include "constants.hpp"
 
 struct AP_Backend {
-  AP_Backend(const std::vector<AsyncCallbackWebHandler>& handlers);
+  AP_Backend(const std::vector<AsyncWebHandler>& handlers);
 
   AsyncWebServer _webServer;
   AsyncWebSocket _webSocket;
-  std::vector<AsyncCallbackWebHandler> _handlers;
+  std::vector<AsyncWebHandler> _handlers;
 };
 
 std::unique_ptr<AP_Backend> Instance = nullptr;
@@ -28,21 +30,43 @@ void AccessPoint::SetWebSocketCallbacks(WebSocketCallbacks callbacks) {
   Callbacks = callbacks;
 }
 
-bool AccessPoint::Start(const char* ssid, const char* password, const std::vector<AsyncCallbackWebHandler>& handlers) {
+bool AccessPoint::Start(const char* ssid, const char* password, const std::vector<AsyncWebHandler>& handlers) {
+  Logger::Log("Starting access point");
   if (Instance != nullptr) {
     return true;
   }
 
+  Logger::Log("Configuring access point");
   if (!WiFi.softAPConfig(IPAddress(10,0,0,2), IPAddress(10,0,0,1), IPAddress(255,255,255,0))) {
+    Logger::Log("Failed to configure access point");
     return false;
   }
 
+  Logger::Log("Starting access point");
   if (!WiFi.softAP(ssid, password)) {
+    Logger::Log("Failed to start access point");
     return false;
   }
+
+  WiFi.onSoftAPModeStationConnected([](const WiFiEventSoftAPModeStationConnected& event) {
+    char buf[64];
+    sprintf(buf, "Station connected: %02X:%02X:%02X:%02X:%02X:%02X", event.mac[0], event.mac[1], event.mac[2], event.mac[3], event.mac[4], event.mac[5]);
+    Logger::Log(buf);
+  });
+  WiFi.onSoftAPModeStationDisconnected([](const WiFiEventSoftAPModeStationDisconnected& event) {
+    char buf[64];
+    sprintf(buf, "Station disconnected: %02X:%02X:%02X:%02X:%02X:%02X", event.mac[0], event.mac[1], event.mac[2], event.mac[3], event.mac[4], event.mac[5]);
+    Logger::Log(buf);
+  });
+  WiFi.onSoftAPModeProbeRequestReceived([](const WiFiEventSoftAPModeProbeRequestReceived& event) {
+    char buf[64];
+    sprintf(buf, "Probe request received: %02X:%02X:%02X:%02X:%02X:%02X", event.mac[0], event.mac[1], event.mac[2], event.mac[3], event.mac[4], event.mac[5]);
+    Logger::Log(buf);
+  });
 
   Instance = std::make_unique<AP_Backend>(handlers);
 
+  Logger::Log("Starting web server");
   Instance->_webServer.begin();
 
   return true;
@@ -53,8 +77,10 @@ void AccessPoint::Stop() {
     return;
   }
 
+  Logger::Log("Stopping web server");
   Instance->_webServer.end();
 
+  Logger::Log("Stopping access point");
   WiFi.softAPdisconnect(true);
 
   Instance = nullptr;
@@ -100,11 +126,13 @@ void HandleWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, 
   }
 }
 
-AP_Backend::AP_Backend(const std::vector<AsyncCallbackWebHandler>& handlers) : _webServer(80), _webSocket("/ws"), _handlers(handlers) {
+AP_Backend::AP_Backend(const std::vector<AsyncWebHandler>& handlers) : _webServer(80), _webSocket("/ws"), _handlers(handlers) {
   _webSocket.onEvent(HandleWebSocketEvent);
   _webServer.addHandler(&_webSocket);
 
-  for (AsyncCallbackWebHandler& handler : _handlers) {
+  //_handlers.push_back(SDCardWebHandler());
+
+  for (AsyncWebHandler& handler : _handlers) {
     _webServer.addHandler(&handler);
   }
 }

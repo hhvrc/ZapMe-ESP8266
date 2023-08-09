@@ -3,14 +3,15 @@
 #include "sdcard.hpp"
 
 std::uint64_t LogIndex = 0;
+char FileName[32] = {0};
 
 Logger::InitializationError Logger::Initialize() {
   if (LogIndex != 0) {
     return InitializationError::None;
   }
 
-  auto [sd, sdError] = SDCard();
-  if (sdError != SDCardError::None) {
+  auto sd = SDCard::GetInstance();
+  if (!sd->ok()) {
     return InitializationError::SDCardError;
   }
 
@@ -31,10 +32,9 @@ Logger::InitializationError Logger::Initialize() {
       continue;
     }
 
-    char fileName[64];
-    file.getName(fileName, sizeof(fileName));
+    file.getName(FileName, sizeof(FileName));
     std::uint64_t index = 0;
-    if (sscanf(fileName, "log_%u.txt", &index) == 1) {
+    if (sscanf(FileName, "log_%llu.txt", &index) == 1) {
       if (index > LogIndex) {
         LogIndex = index;
       }
@@ -42,25 +42,24 @@ Logger::InitializationError Logger::Initialize() {
     file.close();
   }
 
+  // Set the name of the next log file
   LogIndex++;
+  sprintf(FileName, "/log/log_%llu.txt", LogIndex);
 
   return InitializationError::None;
 }
 
 void Logger::Log(const char* message) {
-  auto [sd, sdError] = SDCard();
-  if (sdError != SDCardError::None) {
+  auto sd = SDCard::GetInstance();
+  if (!sd->ok()) {
     return;
   }
 
-  char fileName[64];
-  sprintf(fileName, "/log/log_%u.txt", LogIndex);
-
-  FsFile file = sd->open(fileName, O_CREAT | O_APPEND | O_WRITE);
+  FsFile file = sd->open(FileName, O_CREAT | O_APPEND | O_WRITE);
   if (!file) {
     return;
   }
-
+  
   file.println(message);
   file.close();
 }

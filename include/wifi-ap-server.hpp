@@ -13,7 +13,7 @@ namespace AccessPoint {
   };
   void SetWebSocketCallbacks(WebSocketCallbacks callbacks);
 
-  bool Start(const char* ssid, const char* password, const std::vector<AsyncCallbackWebHandler>& handlers);
+  bool Start(const char* ssid, const char* password, const std::vector<AsyncWebHandler>& handlers);
   void Stop();
 
   bool IsRunning();

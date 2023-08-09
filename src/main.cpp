@@ -152,9 +152,11 @@ String processor(const String& var){
 }
 
 void handleWebServerGetRoot(AsyncWebServerRequest *request) {
+  Logger::Log("GET /");
   request->send_P(200, "text/html", index_html, processor);
 }
 void handleWebServerGetWifi(AsyncWebServerRequest *request) {
+  Logger::Log("GET /wifi");
   auto config = Config::LoadReadOnly();
 
   String str = "";
@@ -169,6 +171,7 @@ void handleWebServerGetWifi(AsyncWebServerRequest *request) {
   request->send(200, "text/plain", str);
 }
 void handleWebServerPostWifi(AsyncWebServerRequest *request) {
+  Logger::Log("POST /wifi");
   String ssid;
   String password;
   if (request->hasParam("ssid", true)) {
@@ -233,17 +236,18 @@ void blinkError(int i) {
 }
 
 void setup(){
+
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, LOW);
 
-  auto [sd, sdError] = SDCard();
-  switch (sdError)
+  auto sd = SDCard::GetInstance();
+  switch (sd->error())
   {
-  case SDCardError::None:
+  case SDCard::SDCardError::None:
     break;
-  case SDCardError::InitializationFailed:
+  case SDCard::SDCardError::InitializationFailed:
     blinkError(1);
-  case SDCardError::RootDirectoryNotFound:
+  case SDCard::SDCardError::RootDirectoryNotFound:
     blinkError(2);
   default:
     blinkError(3);
