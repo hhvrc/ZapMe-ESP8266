@@ -2,16 +2,12 @@
 
 #include "logger.hpp"
 
-#include <ESP8266mDNS.h>
-
 WebServices::WebServices(WebServices::WebSocketCallbacks webSocketCallbacks)
   : _webServer(80)
   , _socketServer(81)
   , _sdWebHandler()
   , _webSocketCallbacks(webSocketCallbacks)
 {
-  MDNS.begin("zapme");
-
   _socketServer.onEvent(std::bind(&WebServices::handleWebSocketEvent, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
   _socketServer.begin();
 
@@ -22,11 +18,9 @@ WebServices::WebServices(WebServices::WebSocketCallbacks webSocketCallbacks)
 WebServices::~WebServices() {
   _webServer.close();
   _socketServer.close();
-  MDNS.end();
 }
 
 void WebServices::update() {
-  MDNS.update();
   _webServer.handleClient();
   _socketServer.loop();
 }

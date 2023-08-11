@@ -5,6 +5,7 @@
 #include "logger.hpp"
 #include "serializers/caixianlin-serialize.hpp"
 
+#include <ESP8266mDNS.h>
 bool ledState = false;
 std::shared_ptr<WebServices> webServices = nullptr;
 
@@ -102,6 +103,12 @@ void setup(){
 
   Logger::Log("ZapMe starting up");
 
+  Logger::Log("Configuring DNS Multicast");
+  if (!MDNS.begin("zapme")) {
+    Logger::Log("Failed to configure DNS Multicast");
+    // mDNS is not critical, so we can continue
+  }
+
   Logger::Log("Configuring WiFi AP");
   if (!WiFi_AP::Initialize(IPAddress(10,0,0,1), IPAddress(255,255,255,0))) {
     Logger::Log("Failed to configure access point");
@@ -149,6 +156,7 @@ void setup(){
 }
 
 void loop() {
+  MDNS.update();
   WiFi_AP::Loop();
   webServices->update();
 }
