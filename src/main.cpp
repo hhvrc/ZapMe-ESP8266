@@ -103,6 +103,12 @@ void setup(){
 
   Logger::Log("ZapMe starting up");
 
+  Logger::Log("Configuring hostname");
+  if(!WiFi.hostname("zapme")) {
+    Logger::Log("Failed to configure hostname");
+    // Hostname is not critical, so we can continue
+  }
+
   Logger::Log("Configuring DNS Multicast");
   if (!MDNS.begin("zapme")) {
     Logger::Log("Failed to configure DNS Multicast");
