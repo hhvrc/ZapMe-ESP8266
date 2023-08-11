@@ -1,12 +1,14 @@
 #pragma once
 
-namespace Logger {
+class Logger {
+  Logger() = delete;
+public:
   enum class InitializationError {
     None,
     SDCardError,
     FileSystemError,
   };
 
-  InitializationError Initialize();
-  void Log(const char* message);
-}
+  static InitializationError Initialize();
+  static void Log(const char* message);
+};

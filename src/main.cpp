@@ -1,6 +1,6 @@
 #include "webservices.hpp"
 #include "wifi-ap.hpp"
-#include "config.hpp"
+#include "secure-config.hpp"
 #include "sdcard.hpp"
 #include "logger.hpp"
 #include "serializers/caixianlin-serialize.hpp"
@@ -159,13 +159,86 @@ void setup(){
     Logger::Log("Deleted flash_overwrite.bin");
   }
 */
-  Config::Migrate();
-  auto config = Config::LoadReadOnly();
 
 }
 
+/*
+void enableAP() {
+  if (wifiMode == WIFI_AP) {
+    return;
+  }
+
+  Logger::Log("Enabling AP mode");
+
+
+  String apName;
+  std::uint32_t apNameSize = SecureConfig::Read(0, apName);
+
+  String apPassword;
+  std::uint32_t apPasswordSize = SecureConfig::Read(apNameSize, apPassword);
+
+  if (!WiFi_AP::Start(apName.c_str(), apPassword.c_str())) {
+    Logger::Log("Failed to start AP mode");
+    blinkHalt(8);
+  }
+
+  wifiMode = WIFI_AP;
+}
+*/
+
+WiFiMode_t wifiMode = WIFI_OFF;
+bool webServicesRunning = false;
+
 void loop() {
+  /*
+  switch (wifiMode)
+  {
+  case WIFI_OFF:
+    if (WiFi_AP::IsConnected()) {
+      wifiMode = WIFI_AP;
+      Logger::Log("Switching to AP mode");
+    } else if (WiFi_STA::IsConnected()) {
+      wifiMode = WIFI_STA;
+      Logger::Log("Switching to STA mode");
+    }
+    break;
+  case WIFI_AP:
+    if (!WiFi_AP::IsConnected()) {
+      wifiMode = WIFI_OFF;
+      Logger::Log("Switching to OFF mode");
+    }
+    break;
+  case WIFI_STA:
+    if (!WiFi_STA::IsConnected()) {
+      wifiMode = WIFI_OFF;
+      Logger::Log("Switching to OFF mode");
+    }
+    break;
+  case WIFI_AP_STA:
+    if (!WiFi_AP::IsConnected() && !WiFi_STA::IsConnected()) {
+      wifiMode = WIFI_OFF;
+      Logger::Log("Switching to OFF mode");
+    } else if (!WiFi_AP::IsConnected()) {
+      wifiMode = WIFI_STA;
+      Logger::Log("Switching to STA mode");
+    } else if (!WiFi_STA::IsConnected()) {
+      wifiMode = WIFI_AP;
+      Logger::Log("Switching to AP mode");
+    }
+    break;
+  default:
+    wifiMode = WIFI_OFF;
+    Logger::Log("Switching to OFF mode");
+    break;
+  }
+  */
+
+  // Run update functions
   MDNS.update();
-  WiFi_AP::Loop();
-  webServices->update();
+  if (wifiMode == WIFI_AP || wifiMode == WIFI_AP_STA) {
+    WiFi_AP::Loop();
+  }
+  if (webServicesRunning) {
+    webServices->update();
+  }
 }

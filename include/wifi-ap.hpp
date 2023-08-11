@@ -2,11 +2,13 @@
 
 #include <IPAddress.h>
 
-namespace WiFi_AP {
-  bool Initialize(IPAddress ip, IPAddress subnet);
-  bool Start(const char* ssid, const char* psk = nullptr);
-  void Stop();
-  void Loop();
+class WiFi_AP {
+  WiFi_AP() = delete;
+public:
+  static bool Initialize(IPAddress ip, IPAddress subnet);
+  static bool Start(const char* ssid, const char* psk = nullptr);
+  static void Stop();
+  static void Loop();
 
-  std::uint8_t GetClientCount();
-}
+  static std::uint8_t GetClientCount();
+};
