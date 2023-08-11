@@ -72,6 +72,9 @@ void blinkHalt(int i) {
 }
 
 void setup(){
+  // Set CPU frequency to 160MHz
+  ets_update_cpu_frequency(160);
+
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
