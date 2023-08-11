@@ -1,4 +1,5 @@
 #include "webservices.hpp"
+#include "wifi-ap.hpp"
 #include "config.hpp"
 #include "sdcard.hpp"
 #include "logger.hpp"
@@ -102,7 +103,7 @@ void setup(){
   Logger::Log("ZapMe starting up");
 
   Logger::Log("Configuring WiFi AP");
-  if (!WiFi.softAPConfig(IPAddress(10,0,0,2), IPAddress(10,0,0,1), IPAddress(255,255,255,0))) {
+  if (!WiFi_AP::Initialize(IPAddress(10,0,0,1), IPAddress(255,255,255,0))) {
     Logger::Log("Failed to configure access point");
     blinkHalt(7);
   }
@@ -145,9 +146,9 @@ void setup(){
   Config::Migrate();
   auto config = Config::LoadReadOnly();
 
-  WiFi.softAP(config->wifi.apName, config->wifi.apPassword);
 }
 
 void loop() {
+  WiFi_AP::Loop();
   webServices->update();
 }
