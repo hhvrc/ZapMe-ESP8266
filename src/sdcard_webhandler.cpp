@@ -30,6 +30,8 @@ const char* GetMime(const char* extension) {
     return "text/plain";
   } else if (strcmp(extension, ".json") == 0) {
     return "application/json";
+  } else if (strcmp(extension, ".pdf") == 0) {
+    return "application/pdf";
   }
 
   char buffer[256];
@@ -42,41 +44,42 @@ const char* GetMime(const char* extension) {
 SDCardWebHandler::SDCardWebHandler() : _sd(SDCard::GetInstance()) {
 }
 
-SDCardWebHandler::~SDCardWebHandler() {
+bool SDCardWebHandler::canHandle(HTTPMethod method, const String& uri) {
+  return method == HTTP_GET && uri != "/ws" && _sd->ok();
 }
 
-bool SDCardWebHandler::canHandle(AsyncWebServerRequest *request) {
-  return request->method() == HTTP_GET && request->url() != "/ws" && _sd->ok();
-}
+bool SDCardWebHandler::handle(WebServerType& server, HTTPMethod requestMethod, const String& requestUri) {
+  const char* contentType;
 
-void SDCardWebHandler::handleRequest(AsyncWebServerRequest *request) {
-  String path = request->url();
-  FsFile file;
-  String contentType;
-
-  if (path == "/" || path == "/index") {
-    file = _sd->open("/www/index.html");
+  char cPath[256];
+  if (requestUri == "/" || requestUri == "/index") {
+    strcpy(cPath, "/www/index.html");
     contentType = "text/html";
   } else {
     // If the last part of the path doesn't end in a file extension, add .html to it
-    int lastSlash = path.lastIndexOf('/');
-    int lastDot = path.lastIndexOf('.');
-    if (lastDot < 0 || (lastDot < lastSlash && lastDot != lastSlash + 1 && (unsigned int)lastDot + 1u != path.length())) {
-      path = "/www" + path + ".html";
+    int lastSlash = requestUri.lastIndexOf('/');
+    int lastDot = requestUri.lastIndexOf('.');
+    if (lastDot < 0 || (lastDot < lastSlash && lastDot != lastSlash + 1 && (unsigned int)lastDot + 1u != requestUri.length())) {
+      strcpy(cPath, "/www");
+      strcpy(cPath + 4, requestUri.c_str());
+      strcpy(cPath + 4 + requestUri.length(), ".html");
       contentType = "text/html";
     } else {
-      path = "/www" + path;
-      contentType = GetMime(path.c_str() + lastDot);
+      strcpy(cPath, "/www");
+      strcpy(cPath + 4, requestUri.c_str());
+      contentType = GetMime(requestUri.c_str() + lastDot);
     }
-    file = _sd->open(path.c_str());
   }
 
-  Logger::Log((request->url() + " -> " + path + "(" + contentType + ")").c_str());
-
+  FsFile file = _sd->open(cPath, O_READ);
   if (!file) {
-    request->send(404, "text/plain", "File not found");
-    return;
+    server.send(404, "text/plain", "File not found");
+    return true;
   }
 
-  request->send(file, contentType, file.size());
+  server.sendHeader("Cache-Control", "max-age=86400");
+
+  server.send(200, contentType, file, file.size());
+
+  return true;
 }

@@ -2,16 +2,16 @@
 
 #include "sdcard.hpp"
 
-#include <ESPAsyncWebServer.h>
+#include <ESP8266WebServer.h>
 
-class SDCardWebHandler : public AsyncWebHandler {
+class SDCardWebHandler : public RequestHandler {
   std::shared_ptr<SDCard> _sd;
+  using WebServerType = esp8266webserver::ESP8266WebServerTemplate<WiFiServer>;
 public:
   SDCardWebHandler();
-  ~SDCardWebHandler() override;
 
-  bool canHandle(AsyncWebServerRequest *request) override;
-  void handleRequest(AsyncWebServerRequest *request) override;
+  bool canHandle(HTTPMethod method, const String& uri) override;
+  bool handle(WebServerType& server, HTTPMethod requestMethod, const String& requestUri) override;
 
   SDCardWebHandler(SDCardWebHandler const&) = delete;
   void operator=(SDCardWebHandler const&) = delete;
