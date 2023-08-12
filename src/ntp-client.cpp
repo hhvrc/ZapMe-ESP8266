@@ -6,21 +6,18 @@
 
 #include <array>
 
-template <std::size_t N>
-struct NtpServerArray {
-  static const std::size_t Size = N;
-  std::array<const char*, N> names;
-  std::array<IPAddress, N> ips;
+struct NtpServerRecord {
+  const char* hostName;
+  IPAddress ipAddr;
 };
-NtpServerArray<4> NTP_SERVERS = {
-  {
-    "pool.ntp.org",
-    "time.nist.gov",
-    "time.google.com",
-    "time.cloudflare.com",
-  },
-  {}
+
+NtpServerRecord NTP_SERVERS[] = {
+  { "pool.ntp.org", {} },
+  { "time.nist.gov", {} },
+  { "time.google.com", {} },
+  { "time.cloudflare.com", {} },
 };
+std::size_t NTP_SERVER_COUNT = sizeof(NTP_SERVERS) / sizeof(NtpServerRecord);
 
 NtpClient::NtpClient() : _udp(), _buffer(), _serverIndex(0), _lastTransmit(0), _lastReceive(0) {
 }
@@ -36,11 +33,13 @@ bool NtpClient::begin() {
   }
 
   // Resolve NTP server names to IP addresses
-  int i = 0;
-  for (std::size_t i = 0; i < NTP_SERVERS.Size; ++i) {
-    i += WiFi.hostByName(NTP_SERVERS.names[i], NTP_SERVERS.ips[i]);
+  bool anyResolved = false;
+  for (std::size_t i = 0; i < NTP_SERVER_COUNT; ++i) {
+    if (WiFi.hostByName(NTP_SERVERS[i].hostName, NTP_SERVERS[i].ipAddr)) {
+      anyResolved = true;
+    }
   }
-  if (i == 0) {
+  if (!anyResolved) {
     Logger::Log("[NTP] Unable to start NTP client: Unable to resolve NTP server names");
     return false;
   }
@@ -83,7 +82,16 @@ void NtpClient::sendNtpPacket() {
 
   _buffer[0] = 0b11100011;  // LI, Version, Mode
 
-  _udp.beginPacket(NTP_SERVERS.ips[_serverIndex], NTP_PORT);
+  IPAddress ntpServerIP;
+  for (std::size_t i = 0; i < NTP_SERVER_COUNT; ++i) {
+    if (NTP_SERVERS[i].ipAddr.isSet()) {
+      ntpServerIP = NTP_SERVERS[i].ipAddr;
+      _serverIndex = i;
+      break;
+    }
+  }
+
+  _udp.beginPacket(ntpServerIP, NTP_PORT);
   _udp.write(_buffer, NTP_PACKET_SIZE);
   _udp.endPacket();
 }
