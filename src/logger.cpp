@@ -74,6 +74,7 @@ void Logger::Log(const char* message) {
   std::uint64_t days = hours / 24;
   hours -= days * 24;
 
-  file.printf("[%02llu:%02llu:%02llu:%02llu.%03llu] %s\n", days, hours, minutes, seconds, milli, message);
+  file.printf("[%02llu:%02llu:%02llu:%02llu.%03llu] ", days, hours, minutes, seconds, milli);
+  file.println(message);
   file.close();
 }
