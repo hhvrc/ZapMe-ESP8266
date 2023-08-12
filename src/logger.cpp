@@ -59,7 +59,21 @@ void Logger::Log(const char* message) {
   if (!file) {
     return;
   }
-  
-  file.println(message);
+
+  // Print the message as [DAYS:HOURS:MINUTES:SECONDS.MILLIS] message (0 padded 2 digits, except for millis which is 3 digits)
+  std::uint64_t milli = millis();
+  std::uint64_t seconds = milli / 1000;
+  milli -= seconds * 1000;
+
+  std::uint64_t minutes = seconds / 60;
+  seconds -= minutes * 60;
+
+  std::uint64_t hours = minutes / 60;
+  minutes -= hours * 60;
+
+  std::uint64_t days = hours / 24;
+  hours -= days * 24;
+
+  file.printf("[%02llu:%02llu:%02llu:%02llu.%03llu] %s\n", days, hours, minutes, seconds, milli, message);
   file.close();
 }
