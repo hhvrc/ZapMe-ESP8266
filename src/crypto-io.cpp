@@ -201,6 +201,8 @@ std::size_t CryptoFileReader::_readIntoBuffer() {
         return 0;
       }
     }
+    _bufferWritten -= paddingSize;
+    _file.close();
   }
 
   return fileSizeLeft;
