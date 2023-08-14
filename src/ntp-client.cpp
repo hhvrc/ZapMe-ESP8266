@@ -28,7 +28,7 @@ NtpClient::~NtpClient() {
 
 bool NtpClient::begin() {
   if (!WiFi.isConnected()) {
-    Logger::Log("[NTP] Unable to start NTP client: WiFi is not connected");
+    Logger::println("[NTP] Unable to start NTP client: WiFi is not connected");
     return false;
   }
 
@@ -40,12 +40,12 @@ bool NtpClient::begin() {
     }
   }
   if (!anyResolved) {
-    Logger::Log("[NTP] Unable to start NTP client: Unable to resolve NTP server names");
+    Logger::println("[NTP] Unable to start NTP client: Unable to resolve NTP server names");
     return false;
   }
 
   if (_udp.begin(NTP_PORT) != 1) {
-    Logger::Log("[NTP] Unable to start NTP client: Unable to bind UDP socket");
+    Logger::println("[NTP] Unable to start NTP client: Unable to bind UDP socket");
     return false;
   }
 
@@ -102,7 +102,7 @@ bool NtpClient::handleNtpPacket() {
   }
 
   if (_udp.read(_buffer, NTP_PACKET_SIZE) != NTP_PACKET_SIZE) {
-    Logger::Log("[NTP] Received invalid NTP packet");
+    Logger::println("[NTP] Received invalid NTP packet");
     return false;
   }
 
@@ -116,9 +116,7 @@ bool NtpClient::handleNtpPacket() {
 
   _epochTime = NTPTime - EPOCH;
 
-  char buffer[64];
-  strftime(buffer, sizeof(buffer), "[NTP] Received packet: %Y-%m-%d %H:%M:%S", localtime(&_epochTime));
-  Logger::Log(buffer);
+  Logger::printlnf("[NTP] Received packet: %Y-%m-%d %H:%M:%S", localtime(&_epochTime));
 
   return true;
 }

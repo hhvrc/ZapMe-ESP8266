@@ -1,61 +1,34 @@
 #include "webservices.hpp"
 #include "wifi-ap.hpp"
-#include "secure-config.hpp"
+#include "ntp-client.hpp"
 #include "sdcard.hpp"
 #include "logger.hpp"
+#include "crypto-utils.hpp"
+#include "crypto-io.hpp"
 #include "serializers/caixianlin-serialize.hpp"
 
 #include <ESP8266mDNS.h>
-bool ledState = false;
+#include <ESP8266WiFiMulti.h>
+
+NtpClient ntpClient;
 std::shared_ptr<WebServices> webServices = nullptr;
 
-String processor(const String& var){
-  if(var == "STATE"){
-    if (ledState){
-      return "ON";
-    }
-    else{
-      return "OFF";
-    }
-  }
-  return String();
-}
-
 void handleWebSocketClientConnected(std::uint8_t socketId, IPAddress remoteIP) {
-  char buf[64];
-  sprintf(buf, "WebSocket client #%u connected from %s", socketId, remoteIP.toString().c_str());
-  Logger::Log(buf);
+  Logger::printlnf("WebSocket client #%u connected from %s", socketId, remoteIP.toString().c_str());
 }
 void handleWebSocketClientDisconnected(std::uint8_t socketId) {
-  char buf[64];
-  sprintf(buf, "WebSocket client #%u disconnected", socketId);
-  Logger::Log(buf);
+  Logger::printlnf("WebSocket client #%u disconnected", socketId);
 }
 void handleWebSocketClientMessage(std::uint8_t socketId, WStype_t type, std::uint8_t* data, std::size_t len) {
-  if (type == WStype_TEXT) {
-    data[len] = 0;
-    if (strcmp((char*)data, "toggle") == 0) {
-      ledState = !ledState;
-      digitalWrite(LED_BUILTIN, ledState);
-      String stateStr = String(ledState);
-      webServices->socketServer().broadcastTXT(stateStr);
-    }
-  }
 }
 void handleWebSocketClientPing(std::uint8_t socketId) {
-  char buf[64];
-  sprintf(buf, "WebSocket client #%u ping received", socketId);
-  Logger::Log(buf);
+  Logger::printlnf("WebSocket client #%u ping received", socketId);
 }
 void handleWebSocketClientPong(std::uint8_t socketId) {
-  char buf[64];
-  sprintf(buf, "WebSocket client #%u pong received", socketId);
-  Logger::Log(buf);
+  Logger::printlnf("WebSocket client #%u pong received", socketId);
 }
 void handleWebSocketClientError(std::uint8_t socketId, uint16_t code, const String& message) {
-  char buf[64];
-  sprintf(buf, "WebSocket client #%u error %u: %s", socketId, code, message.c_str());
-  Logger::Log(buf);
+  Logger::printlnf("WebSocket client #%u error %u: %s", socketId, code, message.c_str());
 }
 
 // Blinks forever in a error pattern
@@ -71,13 +44,15 @@ void blinkHalt(int i) {
   }
 }
 
-void setup(){
+void InitializeCPU() {
   // Set CPU frequency to 160MHz
   ets_update_cpu_frequency(160);
-
+}
+void InitializeLED() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
-
+}
+void InitializeSDCard() {
   auto sd = SDCard::GetInstance();
   switch (sd->error())
   {
@@ -90,7 +65,8 @@ void setup(){
   default:
     blinkHalt(3);
   }
-
+}
+void InitializeLogger() {
   auto loggerError = Logger::Initialize();
   switch (loggerError)
   {
@@ -103,28 +79,40 @@ void setup(){
   default:
     blinkHalt(6);
   }
-
-  Logger::Log("ZapMe starting up");
-
-  Logger::Log("Configuring hostname");
-  if(!WiFi.hostname("zapme")) {
-    Logger::Log("Failed to configure hostname");
-    // Hostname is not critical, so we can continue
+}
+void InitializeWiFi() {
+  Logger::println("Configuring WiFi");
+  WiFi.persistent(false);
+  if (!WiFi.setAutoConnect(false)) {
+    Logger::println("Failed to configure WiFi auto-connect");
   }
-
-  Logger::Log("Configuring DNS Multicast");
+  if (!WiFi.setAutoReconnect(false)) {
+    Logger::println("Failed to configure WiFi auto-reconnect");
+  }
+  if (!WiFi.hostname("zapme")) {
+    Logger::println("Failed to set WiFi hostname");
+  }
+}
+void InitializeMDNS() {
+  Logger::println("Starting mDNS");
   if (!MDNS.begin("zapme")) {
-    Logger::Log("Failed to configure DNS Multicast");
+    Logger::println("Failed to configure DNS Multicast");
     // mDNS is not critical, so we can continue
   }
-
-  Logger::Log("Configuring WiFi AP");
+}
+void InitializeWiFiAP() {
+  Logger::println("Configuring WiFi AP");
   if (!WiFi_AP::Initialize(IPAddress(10,0,0,1), IPAddress(255,255,255,0))) {
-    Logger::Log("Failed to configure access point");
+    Logger::println("Failed to configure access point");
     blinkHalt(7);
   }
+}
+void InitializeWebServices() {
+  if (webServices != nullptr) {
+    return;
+  }
 
-  Logger::Log("Configuring web services");
+  Logger::println("Initializing web services");
   webServices = std::make_shared<WebServices>(WebServices::WebSocketCallbacks {
     .onConnect = handleWebSocketClientConnected,
     .onDisconnect = handleWebSocketClientDisconnected,
@@ -133,112 +121,152 @@ void setup(){
     .onPong = handleWebSocketClientPong,
     .onError = handleWebSocketClientError
   });
-
-/*
-  // Overwrite the flash memory with the contents of flash_overwrite.bin if it exists
-  FsFile flashOverwriteFile = sd->open("/flash_overwrite.bin", O_READ);
-  if (flashOverwriteFile) {
-    if (flashOverwriteFile.size() > 4096) {
-      Logger::Log("flash_overwrite.bin is too large");
-      blinkError(1);
-    }
-
-    // If the file exists, overwrite the flash memory with its contents
-    Logger::Log("Overwriting flash memory with contents of flash_overwrite.bin");
-
-    EEPROM.begin(flashOverwriteFile.size());
-    flashOverwriteFile.readBytes(EEPROM.getDataPtr(), flashOverwriteFile.size());
-    EEPROM.end();
-    flashOverwriteFile.close();
-
-    Logger::Log("Done");
-
-    // Delete the file
-    sd->remove("/flash_overwrite.bin");
-
-    Logger::Log("Deleted flash_overwrite.bin");
-  }
-*/
-
+}
+void InitializeNTP() {
+  Logger::println("Initializing NTP client");
+  ntpClient = NtpClient();
 }
 
-/*
-void enableAP() {
-  if (wifiMode == WIFI_AP) {
+void setup(){
+  InitializeCPU();
+  InitializeLED();
+  InitializeSDCard();
+  InitializeLogger();
+  Logger::println("ZapMe starting up");
+  InitializeWiFi();
+  InitializeMDNS();
+  InitializeWiFiAP();
+  InitializeWebServices();
+  InitializeNTP();
+}
+
+void handleScanResult(std::int8_t networksFound) {
+  if (networksFound < 0) {
     return;
   }
 
-  Logger::Log("Enabling AP mode");
+  if (networksFound == 0) {
+    Logger::println("[WiFi] Scan complete, no networks found");
+  } else {
+    Logger::printlnf("[WiFi] Scan complete, found %d networks:", networksFound);
 
-
-  String apName;
-  std::uint32_t apNameSize = SecureConfig::Read(0, apName);
-
-  String apPassword;
-  std::uint32_t apPasswordSize = SecureConfig::Read(apNameSize, apPassword);
-
-  if (!WiFi_AP::Start(apName.c_str(), apPassword.c_str())) {
-    Logger::Log("Failed to start AP mode");
-    blinkHalt(8);
+    for (std::int8_t i = 0; i < networksFound; i++) {
+      Logger::printlnf("[WiFi]     %s", WiFi.SSID(i).c_str());
+    }
   }
 
-  wifiMode = WIFI_AP;
-}
-*/
+  if (networksFound == 0) {
+    // TODO: enableAP();
+    return;
+  }
 
-WiFiMode_t wifiMode = WIFI_OFF;
-bool webServicesRunning = false;
-
-void loop() {
+  // Connect to the first network from config that we find in the scan results
   /*
-  switch (wifiMode)
-  {
-  case WIFI_OFF:
-    if (WiFi_AP::IsConnected()) {
-      wifiMode = WIFI_AP;
-      Logger::Log("Switching to AP mode");
-    } else if (WiFi_STA::IsConnected()) {
-      wifiMode = WIFI_STA;
-      Logger::Log("Switching to STA mode");
+  std::uint32_t offset = 0;
+  std::uint8_t configNetworkCount;
+  offset += SecureConfig::Read(0, configNetworkCount);
+  for (std::uint8_t i = 0; i < configNetworkCount; i++) {
+    String configNetworkSSID;
+    offset += SecureConfig::Read(offset, configNetworkSSID);
+
+    String configNetworkPassword;
+    offset += SecureConfig::Read(offset, configNetworkPassword);
+
+    for (std::int8_t j = 0; j < networksFound; j++) {
+      if (WiFi.SSID(j) == configNetworkSSID) {
+        Logger::println("[WiFi] Connecting to network from config");
+        WiFi.begin(configNetworkSSID.c_str(), nullptr, i);
+        return;
+      }
     }
-    break;
-  case WIFI_AP:
-    if (!WiFi_AP::IsConnected()) {
-      wifiMode = WIFI_OFF;
-      Logger::Log("Switching to OFF mode");
-    }
-    break;
-  case WIFI_STA:
-    if (!WiFi_STA::IsConnected()) {
-      wifiMode = WIFI_OFF;
-      Logger::Log("Switching to OFF mode");
-    }
-    break;
-  case WIFI_AP_STA:
-    if (!WiFi_AP::IsConnected() && !WiFi_STA::IsConnected()) {
-      wifiMode = WIFI_OFF;
-      Logger::Log("Switching to OFF mode");
-    } else if (!WiFi_AP::IsConnected()) {
-      wifiMode = WIFI_STA;
-      Logger::Log("Switching to STA mode");
-    } else if (!WiFi_STA::IsConnected()) {
-      wifiMode = WIFI_AP;
-      Logger::Log("Switching to AP mode");
-    }
-    break;
-  default:
-    wifiMode = WIFI_OFF;
-    Logger::Log("Switching to OFF mode");
-    break;
   }
   */
-
-  // Run update functions
-  MDNS.update();
-  if (wifiMode == WIFI_AP || wifiMode == WIFI_AP_STA) {
-    WiFi_AP::Loop();
+}
+bool startWiFiScan() {
+  switch (WiFi.status())
+  {
+  case WL_CONNECTED:
+    Logger::println("[WiFi] Disconnecting from WiFi");
+    WiFi.disconnect(false, true);
+    break;
+  case WL_DISCONNECTED:
+    Logger::println("[WiFi] Starting WiFi");
+    WiFi.begin();
+    break;
+  case WL_IDLE_STATUS:
+    break;
+  default:
+    {
+      Logger::printlnf("[WiFi] Cannot start scan, WiFi is busy (status %u)", WiFi.status());
+    }
+    return false;
   }
-  if (webServicesRunning) {
-    webServices->update();
+
+  WiFi.scanDelete();
+
+  std::int8_t scanResult = WiFi.scanNetworks(true);
+  if (scanResult == WIFI_SCAN_RUNNING) {
+    Logger::println("[WiFi] Scanning for networks");
+    return true;
+  }
+
+  if (scanResult == WIFI_SCAN_FAILED) {
+    Logger::println("[WiFi] Failed to start scan");
+
+    // TODO: Handle error, update web portal
+
+    return false;
+  }
+
+  handleScanResult(scanResult);
+
+  return true;
+}
+void processWiFiScanning() {
+  std::int8_t scanResult = WiFi.scanComplete();
+  if (scanResult < 0) {
+    return;
+  }
+
+  handleScanResult(scanResult);
+}
+
+bool highPerformanceMode = false;
+void SetHighPerformanceMode(bool enabled) {
+  if (enabled == highPerformanceMode) {
+    return;
+  }
+
+  if (enabled) {
+    Logger::println("Entering high performance mode");
+    highPerformanceMode = true;
+    webServices = nullptr;
+    WiFi_AP::Stop();
+    MDNS.close();
+  } else {
+    Logger::println("Exiting high performance mode");
+    InitializeMDNS();
+    //WiFi_AP::Start();
+    InitializeWebServices();
+    highPerformanceMode = false;
+  }
+}
+
+void loop() {
+  // Run update functions
+  // TODO: Add a way to toggle high performance mode
+
+  // During high performance mode, we only run update functions that handle critical tasks
+  // This is to ensure that the device is as responsive as possible
+  // If any errors are encountered, we will exit high performance mode and run all update functions
+  // AccessPoint will be disabled during high performance mode
+  if (!highPerformanceMode) {
+    if (MDNS.isRunning()) {
+      MDNS.update();
+    }
+    WiFi_AP::Update();
+    if (webServices != nullptr) {
+      webServices->update();
+    }
   }
 }

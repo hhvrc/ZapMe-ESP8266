@@ -34,9 +34,7 @@ const char* GetMime(const char* extension) {
     return "application/pdf";
   }
 
-  char buffer[256];
-  sprintf(buffer, "Unknown file extension: %s", extension);
-  Logger::Log(buffer);
+  Logger::printlnf("Unknown file extension: %s", extension);
 
   return "application/octet-stream";
 }

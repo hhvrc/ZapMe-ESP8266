@@ -4,14 +4,14 @@
 #include <DNSServer.h>
 
 IPAddress apIP;
-IPAddress apSubnet;
 
 const byte DNS_PORT = 53;
 DNSServer dnsServer;
 
+bool running = false;
+
 bool WiFi_AP::Initialize(IPAddress ip, IPAddress subnet) {
   apIP = ip;
-  apSubnet = subnet;
   return WiFi.softAPConfig(ip, ip, subnet);
 }
 
@@ -25,15 +25,22 @@ bool WiFi_AP::Start(const char* ssid, const char* psk) {
     return false;
   }
 
+  running = true;
+
   return true;
 }
 
 void WiFi_AP::Stop() {
   dnsServer.stop();
   WiFi.softAPdisconnect(true);
+  running = false;
 }
 
-void WiFi_AP::Loop() {
+void WiFi_AP::Update() {
+  if (!running) {
+    return;
+  }
+
   dnsServer.processNextRequest();
 }
 

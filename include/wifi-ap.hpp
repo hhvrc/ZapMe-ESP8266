@@ -8,7 +8,7 @@ public:
   static bool Initialize(IPAddress ip, IPAddress subnet);
   static bool Start(const char* ssid, const char* psk = nullptr);
   static void Stop();
-  static void Loop();
+  static void Update();
 
   static std::uint8_t GetClientCount();
 };

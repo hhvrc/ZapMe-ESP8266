@@ -51,9 +51,7 @@ void WebServices::handleWebSocketEvent(std::uint8_t socketId, WStype_t type, std
       _webSocketCallbacks.onError(socketId, len, String(reinterpret_cast<char*>(data)));
       break;
     default:
-      char buffer[34];
-      std::snprintf(buffer, sizeof(buffer), "Unknown WebSocket event type: %d", type);
-      Logger::Log(buffer);
+      Logger::printlnf("Unknown WebSocket event type: %d", type);
       break;
   }
 }
