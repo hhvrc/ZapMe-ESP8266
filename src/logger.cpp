@@ -2,8 +2,6 @@
 
 #include "sdcard.hpp"
 
-#include <fmt/format.h>
-
 constexpr bool LOG_TO_SERIAL = true;
 #define SERIAL_BEGIN(...) \
   if (LOG_TO_SERIAL) { \
