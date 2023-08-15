@@ -44,10 +44,6 @@ void blinkHalt(int i) {
   }
 }
 
-void InitializeCPU() {
-  // Set CPU frequency to 160MHz
-  ets_update_cpu_frequency(160);
-}
 void InitializeLED() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
@@ -128,7 +124,6 @@ void InitializeNTP() {
 }
 
 void setup(){
-  InitializeCPU();
   InitializeLED();
   InitializeSDCard();
   InitializeLogger();
