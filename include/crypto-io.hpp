@@ -71,6 +71,7 @@ public:
 
   void close() {
     _flush(true);
+    _file.close();
   }
 
   operator bool() const {

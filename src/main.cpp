@@ -7,33 +7,13 @@
 #include "crypto-io.hpp"
 #include "serializers/caixianlin-serialize.hpp"
 
+#include <ArduinoJson.h>
+
 #include <ESP8266mDNS.h>
 #include <ESP8266WiFiMulti.h>
 
 NtpClient ntpClient;
 std::shared_ptr<WebServices> webServices = nullptr;
-
-void handleWebSocketClientConnected(std::uint8_t socketId, IPAddress remoteIP) {
-  Logger::printlnf("WebSocket client #%u connected from %s", socketId, remoteIP.toString().c_str());
-}
-void handleWebSocketClientDisconnected(std::uint8_t socketId) {
-  Logger::printlnf("WebSocket client #%u disconnected", socketId);
-}
-void handleWebSocketClientMessage(std::uint8_t socketId, WStype_t type, std::uint8_t* data, std::size_t len) {
-  (void)socketId;
-  (void)type;
-  (void)data;
-  (void)len;
-}
-void handleWebSocketClientPing(std::uint8_t socketId) {
-  Logger::printlnf("WebSocket client #%u ping received", socketId);
-}
-void handleWebSocketClientPong(std::uint8_t socketId) {
-  Logger::printlnf("WebSocket client #%u pong received", socketId);
-}
-void handleWebSocketClientError(std::uint8_t socketId, uint16_t code, const String& message) {
-  Logger::printlnf("WebSocket client #%u error %u: %s", socketId, code, message.c_str());
-}
 
 // Blinks forever in a error pattern
 [[noreturn]] void blinkHalt(int i) {
@@ -82,6 +62,11 @@ void InitializeLogger() {
 }
 void InitializeWiFi() {
   Logger::println("Configuring WiFi");
+  WiFi.disconnect(true);
+  if (!WiFi.mode(WIFI_OFF)) {
+    Logger::println("Failed to disable WiFi");
+  }
+
   WiFi.persistent(false);
   if (!WiFi.setAutoConnect(false)) {
     Logger::println("Failed to configure WiFi auto-connect");
@@ -92,6 +77,8 @@ void InitializeWiFi() {
   if (!WiFi.hostname("zapme")) {
     Logger::println("Failed to set WiFi hostname");
   }
+
+  WiFi.mode(WIFI_STA);
 }
 void InitializeMDNS() {
   Logger::println("Starting mDNS");
@@ -100,32 +87,12 @@ void InitializeMDNS() {
     // mDNS is not critical, so we can continue
   }
 }
-void InitializeWiFiAP() {
-  Logger::println("Configuring WiFi AP");
-  if (!WiFi_AP::Initialize(IPAddress(10,0,0,1), IPAddress(255,255,255,0))) {
-    Logger::println("Failed to configure access point");
-    blinkHalt(7);
-  }
-}
-void InitializeWebServices() {
-  if (webServices != nullptr) {
-    return;
-  }
-
-  Logger::println("Initializing web services");
-  webServices = std::make_shared<WebServices>(WebServices::WebSocketCallbacks {
-    .onConnect = handleWebSocketClientConnected,
-    .onDisconnect = handleWebSocketClientDisconnected,
-    .onMessage = handleWebSocketClientMessage,
-    .onPing = handleWebSocketClientPing,
-    .onPong = handleWebSocketClientPong,
-    .onError = handleWebSocketClientError
-  });
-}
 void InitializeNTP() {
   Logger::println("Initializing NTP client");
   ntpClient = NtpClient();
 }
+
+void enableAP();
 
 void setup(){
   InitializeLED();
@@ -134,9 +101,65 @@ void setup(){
   Logger::println("ZapMe starting up");
   InitializeWiFi();
   InitializeMDNS();
-  InitializeWiFiAP();
-  InitializeWebServices();
   InitializeNTP();
+  Logger::println("ZapMe startup complete");
+
+  enableAP();
+}
+
+void enableAP() {
+  Logger::println("Enabling access point");
+  StaticJsonDocument<256> doc;
+
+  auto readFile = CryptoFileReader("/config/wifi-ap.conf.bin");
+  if (!readFile) {
+    Logger::println("Failed to open config file for reading, creating default config");
+    auto writeFile = CryptoFileWriter("/config/wifi-ap.conf.bin");
+    if (!writeFile) {
+      Logger::println("Failed to open config file for writing");
+      return;
+    }
+
+    doc["ssid"] = "ZapMe";
+    doc["psk"] = "ZapMe12345";
+
+    if (serializeMsgPack(doc, writeFile) == 0) {
+      Logger::println("Failed to serialize config file");
+      return;
+    }
+
+    doc.clear();
+    writeFile.close();
+
+    readFile = CryptoFileReader("/config/wifi-ap.conf.bin");
+  }
+
+  auto err = deserializeMsgPack(doc, readFile);
+  if (err) {
+    Logger::printlnf("Failed to deserialize config file: %s", err.c_str());
+    return;
+  }
+  
+  const char* ssid = doc["ssid"];
+  const char* psk = doc["psk"];
+
+  if (ssid == nullptr || psk == nullptr) {
+    Logger::println("Config file is missing ssid and/or psk");
+    return;
+  }
+
+  Logger::printlnf("Starting access point with SSID %s", ssid);
+
+  if (!WiFi_AP::Start(ssid, psk)) {
+    Logger::println("Failed to start access point");
+    return;
+  }
+
+  Logger::println("Access point started, starting web services");
+
+  WebServices::Start();
+
+  Logger::println("Web services started");
 }
 
 void handleScanResult(std::int8_t networksFound) {
@@ -245,8 +268,8 @@ void SetHighPerformanceMode(bool enabled) {
   } else {
     Logger::println("Exiting high performance mode");
     InitializeMDNS();
-    //WiFi_AP::Start();
-    InitializeWebServices();
+    enableAP();
+    WebServices::Start();
     highPerformanceMode = false;
   }
 }
@@ -264,8 +287,6 @@ void loop() {
       MDNS.update();
     }
     WiFi_AP::Update();
-    if (webServices != nullptr) {
-      webServices->update();
-    }
+    WebServices::Update();
   }
 }
