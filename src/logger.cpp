@@ -136,9 +136,10 @@ int FormatTimestamp(char* buffer, std::size_t bufferSize, std::uint64_t millis) 
 }
 int PrintTimestamp(FsFile& file, std::uint64_t millis) {
   char buffer[32];
-  int len = FormatTimestamp(buffer, sizeof(buffer), millis);
-  LOGGER_PRINTS(buffer, len);
-  return len;
+  int tsLen = FormatTimestamp(buffer, sizeof(buffer), millis);
+  if (tsLen <= 0) return tsLen;
+  LOGGER_PRINTS(buffer, tsLen);
+  return tsLen;
 }
 
 void Logger::vprintlnf(const char* format, va_list args) {
@@ -149,6 +150,7 @@ void Logger::vprintlnf(const char* format, va_list args) {
   char* ptr = buffer;
 
   int tsLen = FormatTimestamp(buffer, sizeof(buffer), milli);
+  if (tsLen <= 0) return;
   int logLen = vsnprintf(buffer + tsLen, sizeof(buffer) - tsLen, format, args);
 
   int len = tsLen + logLen;
@@ -159,6 +161,7 @@ void Logger::vprintlnf(const char* format, va_list args) {
     }
 
     tsLen = FormatTimestamp(ptr, len + 1, milli);
+    if (tsLen <= 0) return;
     logLen = vsnprintf(ptr + tsLen, len + 1, format, args);
     len = tsLen + logLen;
   }
@@ -179,6 +182,7 @@ void Logger::printlnf(const char* format, ...) {
   char* ptr = buffer;
 
   int tsLen = FormatTimestamp(buffer, sizeof(buffer), milli);
+  if (tsLen <= 0) return;
 
   va_list args;
   va_start(args, format);
@@ -193,6 +197,7 @@ void Logger::printlnf(const char* format, ...) {
     }
 
     tsLen = FormatTimestamp(ptr, len + 1, milli);
+    if (tsLen <= 0) return;
     va_start(args, format);
     logLen = vsnprintf(ptr + tsLen, len + 1, format, args);
     va_end(args);
@@ -210,14 +215,17 @@ void Logger::printlnf(const char* format, ...) {
 void Logger::println(const String& message) {
   std::uint64_t milli = millis();
   GET_FILE
-  PrintTimestamp(file, milli);
+  int tsLen = PrintTimestamp(file, milli);
+  if (tsLen <= 0) return;
   LOGGER_PRINTLN(message);
   file.close();
 }
 void Logger::println(const char* message) {
+  if (message == nullptr || message[0] == '\0') return;
   std::uint64_t milli = millis();
   GET_FILE
-  PrintTimestamp(file, milli);
+  int tsLen = PrintTimestamp(file, milli);
+  if (tsLen <= 0) return;
   LOGGER_PRINTLN(message);
   file.close();
 }
@@ -250,6 +258,9 @@ std::size_t hexfmt(char* buffer, std::size_t bufferLen, const std::uint8_t* data
 }
 
 void Logger::printhexln(const std::uint8_t* data, std::size_t size) {
+  if (data == nullptr || size <= 0 || size > 4096) {
+    return;
+  }
   std::uint64_t milli = millis();
   GET_FILE
 
@@ -257,6 +268,7 @@ void Logger::printhexln(const std::uint8_t* data, std::size_t size) {
   char* ptr = buffer;
 
   int tsLen = FormatTimestamp(buffer, sizeof(buffer), milli);
+  if (tsLen <= 0) return;
   int hexLen = size * 2;
   int len = tsLen + hexLen + 2;
 
@@ -267,12 +279,13 @@ void Logger::printhexln(const std::uint8_t* data, std::size_t size) {
     }
 
     tsLen = FormatTimestamp(ptr, len + 1, milli);
+    if (tsLen <= 0) return;
     hexLen = hexfmt(ptr + tsLen, len + 1, data, size);
   } else {
-    hexLen = hexfmt(buffer + tsLen, sizeof(buffer) - tsLen, data, size);
+    hexLen = hexfmt(ptr + tsLen, sizeof(ptr) - tsLen, data, size);
   }
-  buffer[tsLen + hexLen + 0] = '\r';
-  buffer[tsLen + hexLen + 1] = '\n';
+  ptr[tsLen + hexLen + 0] = '\r';
+  ptr[tsLen + hexLen + 1] = '\n';
   len = tsLen + hexLen + 2;
 
   LOGGER_PRINTS(buffer, len);
@@ -284,6 +297,9 @@ void Logger::printhexln(const std::uint8_t* data, std::size_t size) {
   file.close();
 }
 void Logger::printhexln(const char* message, const std::uint8_t* data, std::size_t size) {
+  if (message == nullptr || data == nullptr || size <= 0 || size > 4096) {
+    return;
+  }
   std::uint64_t milli = millis();
   GET_FILE
 
@@ -291,6 +307,7 @@ void Logger::printhexln(const char* message, const std::uint8_t* data, std::size
   char* ptr = buffer;
 
   int tsLen = FormatTimestamp(buffer, sizeof(buffer), milli);
+  if (tsLen <= 0) return;
   int msgLen = strlen(message);
   int hexLen = size * 2;
   int len = tsLen + msgLen + hexLen + 2;
@@ -302,18 +319,19 @@ void Logger::printhexln(const char* message, const std::uint8_t* data, std::size
     }
 
     tsLen = FormatTimestamp(ptr, len + 1, milli);
+    if (tsLen <= 0) return;
     memcpy(ptr + tsLen, message, msgLen);
     hexLen = hexfmt(ptr + tsLen + msgLen, len + 1, data, size);
   } else {
-    memcpy(buffer + tsLen, message, msgLen);
-    hexLen = hexfmt(buffer + tsLen + msgLen, sizeof(buffer) - tsLen - msgLen, data, size);
+    memcpy(ptr + tsLen, message, msgLen);
+    hexLen = hexfmt(ptr + tsLen + msgLen, sizeof(ptr) - tsLen - msgLen, data, size);
   }
 
-  buffer[tsLen + msgLen + hexLen + 0] = '\r';
-  buffer[tsLen + msgLen + hexLen + 1] = '\n';
+  ptr[tsLen + msgLen + hexLen + 0] = '\r';
+  ptr[tsLen + msgLen + hexLen + 1] = '\n';
   len = tsLen + msgLen + hexLen + 2;
 
-  LOGGER_PRINTS(buffer, len);
+  LOGGER_PRINTS(ptr, len);
 
   if (ptr != buffer) {
       delete[] ptr;
