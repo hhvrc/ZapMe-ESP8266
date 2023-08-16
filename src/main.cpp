@@ -20,6 +20,10 @@ void handleWebSocketClientDisconnected(std::uint8_t socketId) {
   Logger::printlnf("WebSocket client #%u disconnected", socketId);
 }
 void handleWebSocketClientMessage(std::uint8_t socketId, WStype_t type, std::uint8_t* data, std::size_t len) {
+  (void)socketId;
+  (void)type;
+  (void)data;
+  (void)len;
 }
 void handleWebSocketClientPing(std::uint8_t socketId) {
   Logger::printlnf("WebSocket client #%u ping received", socketId);
@@ -32,7 +36,7 @@ void handleWebSocketClientError(std::uint8_t socketId, uint16_t code, const Stri
 }
 
 // Blinks forever in a error pattern
-void blinkHalt(int i) {
+[[noreturn]] void blinkHalt(int i) {
   while (true) {
     for (int j = 0; j < i; j++) {
       digitalWrite(LED_BUILTIN, LOW);
