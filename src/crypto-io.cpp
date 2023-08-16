@@ -135,8 +135,8 @@ int CryptoFileReader::read() {
   return _buffer[_bufferRead++];
 }
 std::size_t CryptoFileReader::readBytes(char* data, std::size_t length) {
-  if (!_file.isReadable()) {
-    return -1;
+  if (!this->operator bool()) {
+    return 0;
   }
 
   std::size_t nRead = 0;

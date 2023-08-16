@@ -27,7 +27,7 @@ public:
   }
 
   operator bool() const {
-    return _file.isReadable();
+    return _file.isReadable() || _bufferRead < _bufferWritten;
   }
 private:
   void _alignBuffer();
