@@ -1,7 +1,8 @@
 #pragma once
 
+#include <nonstd/span.hpp>
+
 #include <WString.h>
-#include <span>
 #include <cstdarg>
 #include <cstdint>
 
@@ -23,11 +24,11 @@ public:
   static void println();
 
   static void printhexln(const std::uint8_t* data, std::size_t size);
-  static void printhexln(std::span<const std::uint8_t> data) {
+  static void printhexln(nonstd::span<const std::uint8_t> data) {
     printhexln(data.data(), data.size());
   }
   static void printhexln(const char* message, const std::uint8_t* data, std::size_t size);
-  static void printhexln(const char* message, std::span<const std::uint8_t> data) {
+  static void printhexln(const char* message, nonstd::span<const std::uint8_t> data) {
     printhexln(message, data.data(), data.size());
   }
 };

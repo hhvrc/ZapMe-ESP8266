@@ -1,4 +1,5 @@
-#include <span>
+#include <nonstd/span.hpp>
+
 #include <cstddef>
 #include <cstdint>
 
@@ -22,4 +23,4 @@ enum class Command : std::uint8_t
 	_Max = Beep
 };
 
-constexpr bool CreateMessage(std::uint16_t transmitterId, Channel channel, Command command, std::uint8_t strength, std::span<std::byte, 22> message);
+constexpr bool CreateMessage(std::uint16_t transmitterId, Channel channel, Command command, std::uint8_t strength, nonstd::span<std::byte, 22> message);

@@ -53,13 +53,13 @@ struct CryptoContext {
   br_aes_big_cbcdec_keys decKeys;
   std::array<std::uint8_t, FILE_ID_SIZE> fileID;
 
-  bool verifyFileID(std::span<const std::uint8_t, FILE_ID_SIZE> fileID) const {
+  bool verifyFileID(const std::array<std::uint8_t, FILE_ID_SIZE>& fileID) const {
     return std::memcmp(fileID.data(), this->fileID.data(), FILE_ID_SIZE) == 0;
   }
-  void encrypt(std::uint8_t* data, std::size_t length, std::span<std::uint8_t, AES256_IV_SZ> iv) {
+  void encrypt(std::uint8_t* data, std::size_t length, std::array<std::uint8_t, AES256_IV_SZ>& iv) {
     br_aes_big_cbcenc_run(&encKeys, iv.data(), data, length);
   }
-  void decrypt(std::uint8_t* data, std::size_t length, std::span<std::uint8_t, AES256_IV_SZ> iv) {
+  void decrypt(std::uint8_t* data, std::size_t length, std::array<std::uint8_t, AES256_IV_SZ>& iv) {
     br_aes_big_cbcdec_run(&decKeys, iv.data(), data, length);
   }
 };

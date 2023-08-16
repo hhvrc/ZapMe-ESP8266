@@ -1,13 +1,15 @@
-#include "caixianlin-serialize.hpp"
+#include "serializers/caixianlin-serialize.hpp"
 
 constexpr std::uint16_t Checksum8(std::uint16_t value)
 {
 	return (value >> 8) + (value & 0xFF);
 }
 
-template <std::size_t N, std::integral T>
-constexpr void FillEncodedBits(std::span<std::byte, N> buffer, std::size_t bufferOffset, T value, std::size_t valueOffset = 0)
+template <std::size_t N, typename T>
+constexpr void FillEncodedBits(nonstd::span<std::byte, N> buffer, std::size_t bufferOffset, T value, std::size_t valueOffset = 0)
 {
+  static_assert(std::is_integral_v<T>, "Value must be an integer type");
+
 	std::int64_t valueBits = (sizeof(T) * 8) - valueOffset;
 	std::int64_t bufferSize = N - bufferOffset;
 
@@ -30,7 +32,7 @@ constexpr void FillEncodedBits(std::span<std::byte, N> buffer, std::size_t buffe
 	}
 }
 
-constexpr bool CreateMessage(std::uint16_t transmitterId, Channel channel, Command command, std::uint8_t strength, std::span<std::byte, 22> message)
+constexpr bool CreateMessage(std::uint16_t transmitterId, Channel channel, Command command, std::uint8_t strength, nonstd::span<std::byte, 22> message)
 {
 	if (channel < Channel::_Min || channel > Channel::_Max || command < Command::_Min || command > Command::_Max || strength > 99)
 	{

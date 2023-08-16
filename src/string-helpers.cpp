@@ -10,7 +10,7 @@ public:
     wbuffer()[length] = 0;
   }
 
-  ExtendedString(std::span<const char> buffer)
+  ExtendedString(nonstd::span<const char> buffer)
   {
     init();
     setLen(buffer.size());
@@ -23,14 +23,14 @@ String StringHelpers::FilledString(char c, std::size_t length) {
   return ExtendedString(c, length);
 }
 
-String StringHelpers::FromSpan(std::span<const char> buffer) {
+String StringHelpers::FromSpan(nonstd::span<const char> buffer) {
   return ExtendedString(buffer);
 }
 
-std::span<char> StringHelpers::GetSpan(String& buffer) {
-  return std::span<char>(buffer.begin(), buffer.length());
+nonstd::span<char> StringHelpers::GetSpan(String& buffer) {
+  return nonstd::span<char>(buffer.begin(), buffer.length());
 }
 
-std::span<const char> StringHelpers::GetConstSpan(const String& buffer) {
-  return std::span<const char>(buffer.begin(), buffer.length());
+nonstd::span<const char> StringHelpers::GetConstSpan(const String& buffer) {
+  return nonstd::span<const char>(buffer.begin(), buffer.length());
 }
