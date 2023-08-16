@@ -124,7 +124,7 @@ CryptoFileReader::~CryptoFileReader() {
   close();
 }
 int CryptoFileReader::read() {
-  if (!_file.isReadable()) {
+  if (!this->operator bool()) {
     return -1;
   }
 
@@ -141,7 +141,7 @@ std::size_t CryptoFileReader::readBytes(char* data, std::size_t length) {
 
   std::size_t nRead = 0;
   while (nRead < length) {
-    std::size_t toRead = std::min(length - nRead, _bufferWritten - _bufferRead);
+    std::size_t toRead = std::min(length - nRead, _bufferUsed());
     if (toRead == 0) {
       if (_readIntoBuffer() == 0) {
         break;
@@ -157,30 +157,26 @@ std::size_t CryptoFileReader::readBytes(char* data, std::size_t length) {
 }
 void CryptoFileReader::_alignBuffer() {
   if (_bufferRead > 0) {
-    Logger::printlnf("[CryptoFileReader] Moving %d bytes by %d bytes", _bufferWritten - _bufferRead, _bufferRead);
-    std::memmove(_buffer.data(), _buffer.data() + _bufferRead, _bufferWritten - _bufferRead);
+    Logger::printlnf("[CryptoFileReader] Moving %d bytes by %d bytes", _bufferUsed(), _bufferRead);
+    std::memmove(_buffer.data(), _buffer.data() + _bufferRead, _bufferUsed());
     _bufferWritten -= _bufferRead;
     _bufferRead = 0;
   }
 }
 std::size_t CryptoFileReader::_readIntoBuffer() {
   if (!_file.isReadable()) {
-    Logger::printlnf("[CryptoFileReader] File is not readable");
     return 0;
   }
 
   // Check buffer space
-  std::size_t bufferUsed = _bufferWritten - _bufferRead;
-  std::size_t bufferFree = _buffer.size() - bufferUsed;
-
   std::size_t fileSize = _file.size();
   std::size_t curPos = _file.curPosition();
   std::size_t fileSizeLeft = fileSize - curPos;
 
-  std::size_t toRead = std::min(bufferFree, fileSizeLeft) & ~0xFULL;
+  std::size_t toRead = std::min(_bufferFree(), fileSizeLeft) & ~0xFULL;
 
   if (toRead == 0) {
-    Logger::printlnf("[CryptoFileReader] Not enough space in buffer (%d) or file (%d) left to read a block (%d)", bufferFree, fileSizeLeft, AES256_BLK_SZ);
+    Logger::printlnf("[CryptoFileReader] Not enough space in buffer (%d) or file (%d) left to read a block (%d)", _bufferFree(), fileSizeLeft, AES256_BLK_SZ);
     return 0;
   }
 
@@ -208,20 +204,16 @@ std::size_t CryptoFileReader::_readIntoBuffer() {
   return fileSizeLeft;
 }
 bool CryptoFileReader::_ensureReadBuffer(std::size_t length) {
-  Logger::printlnf("[CryptoFileReader] Ensure buffer %d", length);
+  if (_bufferUsed() >= length) {
+    return true;
+  }
+  
   if (!_file.isReadable()) {
     return false;
   }
 
-  Logger::printlnf("[CryptoFileReader] Buffer %d avail %d", length, _bufferWritten - _bufferRead);
-  std::size_t avail = _bufferWritten - _bufferRead;
-  if (avail >= length) {
-    return true;
-  }
-
-  Logger::printlnf("[CryptoFileReader] Buffer %d read %d", length, _bufferRead);
-  avail += _readIntoBuffer();
-  if (avail >= length) {
+  _readIntoBuffer();
+  if (_bufferUsed() >= length) {
     return true;
   }
 

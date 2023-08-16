@@ -33,6 +33,12 @@ private:
   void _alignBuffer();
   std::size_t _readIntoBuffer();
   bool _ensureReadBuffer(std::size_t length);
+  constexpr std::size_t _bufferUsed() const {
+    return _bufferWritten - _bufferRead;
+  }
+  constexpr std::size_t _bufferFree() const {
+    return _buffer.size() - _bufferUsed();
+  }
 
   std::array<std::uint8_t, AES256_BLK_SZ * 32> _buffer;
   std::array<std::uint8_t, AES256_IV_SZ> _iv;
