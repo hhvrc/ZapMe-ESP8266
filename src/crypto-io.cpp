@@ -301,7 +301,7 @@ void CryptoFileWriter::_flush(bool final) {
 
   // Truncate file to written length
   _file.sync();
-  if (!_file.truncate(_fileWritten)) {
+  if (_file.size() > _fileWritten && !_file.truncate(_fileWritten)) {
     Logger::printlnf("[CryptoFileWriter] Failed to truncate file to %d bytes", _fileWritten);
   }
 
