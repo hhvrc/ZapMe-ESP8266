@@ -1,13 +1,12 @@
 #pragma once
 
-#include <nonstd/span.hpp>
-
-#include <WString.h>
-
 #include <cstdint>
+#include <nonstd/span.hpp>
+#include <WString.h>
 
 class StringHelpers {
   StringHelpers() = delete;
+
 public:
   static String FilledString(char c, std::size_t length);
   static String FromSpan(nonstd::span<const char> buffer);

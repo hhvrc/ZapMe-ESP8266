@@ -1,18 +1,16 @@
 #include "crypto-io.hpp"
 
+#include "crypto-utils.hpp"
 #include "logger.hpp"
 #include "sdcard.hpp"
-#include "crypto-utils.hpp"
-
-#include <CRC32.h>
-
-#include <EEPROM.h>
 
 #include <array>
+#include <CRC32.h>
+#include <EEPROM.h>
 #include <memory>
 
 constexpr std::size_t FILE_ID_SIZE = 16;
-std::array<char, 4> EEPROM_HEADER = { 'A', 'E', 'S', 'K' };
+std::array<char, 4> EEPROM_HEADER  = {'A', 'E', 'S', 'K'};
 
 struct CryptoConfig {
   std::array<char, 4> header;
@@ -90,15 +88,14 @@ void Initialize() {
 }
 
 CryptoFileReader::CryptoFileReader(const char* path)
-  : _buffer()
-  , _iv()
-  , _bufferRead(0)
-  , _bufferWritten(0)
-  , _file(SDCard::GetInstance()->open(path, O_RDONLY))
-{
+    : _buffer(), _iv(), _bufferRead(0), _bufferWritten(0), _file(SDCard::GetInstance()->open(path, O_RDONLY)) {
   std::size_t fileSize = _file.size();
   if (!_file.isReadable() || fileSize < FILE_ID_SIZE + _iv.size() || (fileSize & 0xFULL) != 0) {
-    Logger::printlnf("[CryptoFileReader] File \"%s\" is not readable, too small, or is unaligned. Aborting.", path);
+    Logger::printlnf("[CryptoFileReader] Cannot read file \"%s\", readable: %s, size: %d, aligned: %s",
+                     path,
+                     _file.isReadable() ? "true" : "false",
+                     fileSize,
+                     (fileSize & 0xFULL) == 0 ? "true" : "false");
     close();
     return;
   }
@@ -109,7 +106,9 @@ CryptoFileReader::CryptoFileReader(const char* path)
   std::array<std::uint8_t, FILE_ID_SIZE> fileID;
   _file.readBytes(fileID.data(), fileID.size());
   if (!s_cryptCtx->verifyFileID(fileID)) {
-    Logger::printlnf("[CryptoFileReader] File \"%s\" has different file ID, encryption keys are different and decryption will fail. Aborting.", path);
+    Logger::printlnf(
+      "[CryptoFileReader] File \"%s\" has different file ID, encryption keys are different and decryption will fail. Aborting.",
+      path);
     close();
     return;
   }
@@ -169,14 +168,17 @@ std::size_t CryptoFileReader::_readIntoBuffer() {
   }
 
   // Check buffer space
-  std::size_t fileSize = _file.size();
-  std::size_t curPos = _file.curPosition();
+  std::size_t fileSize     = _file.size();
+  std::size_t curPos       = _file.curPosition();
   std::size_t fileSizeLeft = fileSize - curPos;
 
   std::size_t toRead = std::min(_bufferFree(), fileSizeLeft) & ~0xFULL;
 
   if (toRead == 0) {
-    Logger::printlnf("[CryptoFileReader] Not enough space in buffer (%d) or file (%d) left to read a block (%d)", _bufferFree(), fileSizeLeft, AES256_BLK_SZ);
+    Logger::printlnf("[CryptoFileReader] Not enough space in buffer (%d) or file (%d) left to read a block (%d)",
+                     _bufferFree(),
+                     fileSizeLeft,
+                     AES256_BLK_SZ);
     return 0;
   }
 
@@ -207,7 +209,7 @@ bool CryptoFileReader::_ensureReadBuffer(std::size_t length) {
   if (_bufferUsed() >= length) {
     return true;
   }
-  
+
   if (!_file.isReadable()) {
     return false;
   }
@@ -221,12 +223,7 @@ bool CryptoFileReader::_ensureReadBuffer(std::size_t length) {
 }
 
 CryptoFileWriter::CryptoFileWriter(const char* path)
-  : _buffer()
-  , _iv()
-  , _bufferWritten(0)
-  , _fileWritten(0)
-  , _file(SDCard::GetInstance()->open(path, O_RDWR | O_CREAT))
-{
+    : _buffer(), _iv(), _bufferWritten(0), _fileWritten(0), _file(SDCard::GetInstance()->open(path, O_RDWR | O_CREAT)) {
   if (!_file.isWritable()) {
     Logger::printlnf("[CryptoFileWriter] File %s is not writable", path);
     return;
@@ -290,7 +287,7 @@ void CryptoFileWriter::_flush(bool final) {
   }
 
   // Calculate padding
-  std::size_t paddedLength = (_bufferWritten & ~0x0FULL) + 0x10;
+  std::size_t paddedLength  = (_bufferWritten & ~0x0FULL) + 0x10;
   std::size_t paddingLength = paddedLength - _bufferWritten;
 
   // Write, encrypt and flush buffer

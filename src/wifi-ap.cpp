@@ -2,8 +2,8 @@
 
 #include "logger.hpp"
 
-#include <ESP8266WiFi.h>
 #include <DNSServer.h>
+#include <ESP8266WiFi.h>
 
 IPAddress apIP;
 
@@ -16,12 +16,12 @@ bool WiFi_AP::Start(const char* ssid, const char* psk) {
   WiFi.enableAP(true);
   WiFi.softAPdisconnect(true);
 
-  IPAddress apIP(10,0,0,1);
-  if (!WiFi.softAPConfig(apIP, apIP, IPAddress(255,255,255,0))) {
+  IPAddress apIP(10, 0, 0, 1);
+  if (!WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0))) {
     Logger::println("[WiFi_AP] Failed to enable access point");
     return false;
   }
-  
+
   if (!WiFi.softAP(ssid, psk)) {
     Logger::printlnf("[WiFi_AP] Failed to start access point with SSID %s", ssid);
     Logger::printlnf("[WiFi_AP] STATUS: %d", WiFi.status());
@@ -34,7 +34,7 @@ bool WiFi_AP::Start(const char* ssid, const char* psk) {
     Logger::printlnf("[WiFi_AP] IP: %s", WiFi.localIP().toString());
     Logger::printlnf("[WiFi_AP] SUBNET: %s", WiFi.subnetMask().toString());
     Logger::printlnf("[WiFi_AP] GATEWAY: %s", WiFi.gatewayIP().toString());
-    Logger::printlnf("[WiFi_AP] DNS: %s", WiFi.dnsIP().toString()); 
+    Logger::printlnf("[WiFi_AP] DNS: %s", WiFi.dnsIP().toString());
     Logger::printlnf("[WiFi_AP] CHANNEL: %d", WiFi.channel());
     Logger::printlnf("[WiFi_AP] PHY: %d", WiFi.getPhyMode());
     Logger::printlnf("[WiFi_AP] RSSI: %d", WiFi.RSSI());

@@ -39,8 +39,7 @@ const char* GetMime(const char* extension) {
   return "application/octet-stream";
 }
 
-SDCardWebHandler::SDCardWebHandler() : _sd(SDCard::GetInstance()) {
-}
+SDCardWebHandler::SDCardWebHandler() : _sd(SDCard::GetInstance()) { }
 
 bool SDCardWebHandler::canHandle(HTTPMethod method, const String& uri) {
   return method == HTTP_GET && uri != "/ws" && _sd->ok();
@@ -56,7 +55,7 @@ bool SDCardWebHandler::handle(WebServerType& server, HTTPMethod requestMethod, c
   } else {
     // If the last part of the path doesn't end in a file extension, add .html to it
     int lastSlash = requestUri.lastIndexOf('/');
-    int lastDot = requestUri.lastIndexOf('.');
+    int lastDot   = requestUri.lastIndexOf('.');
     if (lastDot < 0 || (lastDot < lastSlash && lastDot != lastSlash + 1 && (unsigned int)lastDot + 1u != requestUri.length())) {
       strcpy(cPath, "/www");
       strcpy(cPath + 4, requestUri.c_str());

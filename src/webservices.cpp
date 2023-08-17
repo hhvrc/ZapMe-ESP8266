@@ -1,19 +1,18 @@
 #include "webservices.hpp"
 
-#include "sdcard-webhandler.hpp"
 #include "logger.hpp"
-
-#include <memory>
+#include "sdcard-webhandler.hpp"
 
 #include <ArduinoJson.h>
 #include <ESP8266WebServer.h>
+#include <memory>
 #include <WebSocketsServer.h>
 
-constexpr std::uint16_t HTTP_PORT = 80;
+constexpr std::uint16_t HTTP_PORT      = 80;
 constexpr std::uint16_t WEBSOCKET_PORT = 81;
 
 struct WebServicesInstance {
-  WebServicesInstance() : webServer(HTTP_PORT), socketServer(WEBSOCKET_PORT), sdWebHandler() {}
+  WebServicesInstance() : webServer(HTTP_PORT), socketServer(WEBSOCKET_PORT), sdWebHandler() { }
 
   ESP8266WebServer webServer;
   WebSocketsServer socketServer;
@@ -65,14 +64,15 @@ void WebServices::Update() {
 }
 
 void handleWebSocketClientConnected(std::uint8_t socketId) {
-  Logger::printlnf("WebSocket client #%u connected from %s", socketId, s_webServices->socketServer.remoteIP(socketId).toString().c_str());
+  Logger::printlnf(
+    "WebSocket client #%u connected from %s", socketId, s_webServices->socketServer.remoteIP(socketId).toString().c_str());
 }
 void handleWebSocketClientDisconnected(std::uint8_t socketId) {
   Logger::printlnf("WebSocket client #%u disconnected", socketId);
 }
 void handleWebSocketClientMessage(std::uint8_t socketId, WStype_t type, std::uint8_t* data, std::size_t len) {
   (void)socketId;
-  
+
   if (type == WStype_t::WStype_TEXT) {
     Logger::printlnf("WebSocket client #%u sent text message", socketId);
   } else if (type == WStype_t::WStype_BIN) {

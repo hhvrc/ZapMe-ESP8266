@@ -1,14 +1,13 @@
-#include "webservices.hpp"
-#include "wifi-ap.hpp"
+#include "crypto-io.hpp"
+#include "crypto-utils.hpp"
+#include "logger.hpp"
 #include "ntp-client.hpp"
 #include "sdcard.hpp"
-#include "logger.hpp"
-#include "crypto-utils.hpp"
-#include "crypto-io.hpp"
 #include "serializers/caixianlin-serialize.hpp"
+#include "webservices.hpp"
+#include "wifi-ap.hpp"
 
 #include <ArduinoJson.h>
-
 #include <ESP8266mDNS.h>
 #include <ESP8266WiFiMulti.h>
 
@@ -34,30 +33,28 @@ void InitializeLED() {
 }
 void InitializeSDCard() {
   auto sd = SDCard::GetInstance();
-  switch (sd->error())
-  {
-  case SDCard::SDCardError::None:
-    break;
-  case SDCard::SDCardError::InitializationFailed:
-    blinkHalt(1);
-  case SDCard::SDCardError::RootDirectoryNotFound:
-    blinkHalt(2);
-  default:
-    blinkHalt(3);
+  switch (sd->error()) {
+    case SDCard::SDCardError::None:
+      break;
+    case SDCard::SDCardError::InitializationFailed:
+      blinkHalt(1);
+    case SDCard::SDCardError::RootDirectoryNotFound:
+      blinkHalt(2);
+    default:
+      blinkHalt(3);
   }
 }
 void InitializeLogger() {
   auto loggerError = Logger::Initialize();
-  switch (loggerError)
-  {
-  case Logger::InitializationError::None:
-    break;
-  case Logger::InitializationError::SDCardError:
-    blinkHalt(4);
-  case Logger::InitializationError::FileSystemError:
-    blinkHalt(5);
-  default:
-    blinkHalt(6);
+  switch (loggerError) {
+    case Logger::InitializationError::None:
+      break;
+    case Logger::InitializationError::SDCardError:
+      blinkHalt(4);
+    case Logger::InitializationError::FileSystemError:
+      blinkHalt(5);
+    default:
+      blinkHalt(6);
   }
 }
 void InitializeWiFi() {
@@ -94,7 +91,7 @@ void InitializeNTP() {
 
 void enableAP();
 
-void setup(){
+void setup() {
   InitializeLED();
   InitializeSDCard();
   InitializeLogger();
@@ -121,7 +118,7 @@ void enableAP() {
     }
 
     doc["ssid"] = "ZapMe";
-    doc["psk"] = "ZapMe12345";
+    doc["psk"]  = "ZapMe12345";
 
     if (serializeMsgPack(doc, writeFile) == 0) {
       Logger::println("Failed to serialize config file");
@@ -139,9 +136,9 @@ void enableAP() {
     Logger::printlnf("Failed to deserialize config file: %s", err.c_str());
     return;
   }
-  
+
   const char* ssid = doc["ssid"];
-  const char* psk = doc["psk"];
+  const char* psk  = doc["psk"];
 
   if (ssid == nullptr || psk == nullptr) {
     Logger::println("Config file is missing ssid and/or psk");
@@ -205,23 +202,22 @@ void handleScanResult(std::int8_t networksFound) {
   */
 }
 bool startWiFiScan() {
-  switch (WiFi.status())
-  {
-  case WL_CONNECTED:
-    Logger::println("[WiFi] Disconnecting from WiFi");
-    WiFi.disconnect(false, true);
-    break;
-  case WL_DISCONNECTED:
-    Logger::println("[WiFi] Starting WiFi");
-    WiFi.begin();
-    break;
-  case WL_IDLE_STATUS:
-    break;
-  default:
-    {
-      Logger::printlnf("[WiFi] Cannot start scan, WiFi is busy (status %u)", WiFi.status());
-    }
-    return false;
+  switch (WiFi.status()) {
+    case WL_CONNECTED:
+      Logger::println("[WiFi] Disconnecting from WiFi");
+      WiFi.disconnect(false, true);
+      break;
+    case WL_DISCONNECTED:
+      Logger::println("[WiFi] Starting WiFi");
+      WiFi.begin();
+      break;
+    case WL_IDLE_STATUS:
+      break;
+    default:
+      {
+        Logger::printlnf("[WiFi] Cannot start scan, WiFi is busy (status %u)", WiFi.status());
+      }
+      return false;
   }
 
   WiFi.scanDelete();
@@ -262,7 +258,7 @@ void SetHighPerformanceMode(bool enabled) {
   if (enabled) {
     Logger::println("Entering high performance mode");
     highPerformanceMode = true;
-    webServices = nullptr;
+    webServices         = nullptr;
     WiFi_AP::Stop();
     MDNS.close();
   } else {

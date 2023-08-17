@@ -2,16 +2,14 @@
 
 class ExtendedString : public String {
 public:
-  ExtendedString(char c, std::size_t length)
-  {
+  ExtendedString(char c, std::size_t length) {
     init();
     setLen(length);
     memset(wbuffer(), c, length);
     wbuffer()[length] = 0;
   }
 
-  ExtendedString(nonstd::span<const char> buffer)
-  {
+  ExtendedString(nonstd::span<const char> buffer) {
     init();
     setLen(buffer.size());
     memcpy_P(wbuffer(), (PGM_P)buffer.data(), buffer.size());

@@ -1,15 +1,16 @@
 #pragma once
 
-#include <SdFat.h>
 #include <memory>
+#include <SdFat.h>
 
 class SDCard {
   SDCard();
+
 public:
   static std::shared_ptr<SDCard> GetInstance();
 
   ~SDCard();
-  
+
   enum class SDCardError {
     None,
     InitializationFailed,
@@ -27,9 +28,10 @@ public:
   bool remove(const char* path);
 
   operator bool() const { return ok(); }
-  
-  SDCard(const SDCard&) = delete;
-  SDCard& operator = (const SDCard&) = delete;
+
+  SDCard(const SDCard&)            = delete;
+  SDCard& operator=(const SDCard&) = delete;
+
 private:
   SdFs _sd;
   SDCardError _error;
