@@ -2,7 +2,7 @@
 
 #include "sdcard.hpp"
 
-#define LOG_TO_SERIAL false
+#define LOG_TO_SERIAL true
 #define SERIAL_BEGIN(...)      \
   if (LOG_TO_SERIAL) {         \
     Serial.begin(__VA_ARGS__); \
