@@ -1,5 +1,6 @@
 #include "logger.hpp"
 
+#include "resizable-buffer.hpp"
 #include "sdcard.hpp"
 
 #define LOG_TO_SERIAL true
@@ -27,7 +28,7 @@
   if (LOG_TO_SERIAL) {    \
     Serial.println();     \
   }
-#define SERIAL_PRINTSLN(buf, len) \
+#define SERIAL_SPRINTLN(buf, len) \
   if (LOG_TO_SERIAL) {            \
     Serial.write(buf, len);       \
     Serial.println();             \
@@ -48,8 +49,8 @@
 #define LOGGER_PRINTELN() \
   SERIAL_PRINTELN(buf)    \
   file.println()
-#define LOGGER_PRINTSLN(buf, len) \
-  SERIAL_PRINTSLN(buf, len)       \
+#define LOGGER_SPRINTLN(buf, len) \
+  SERIAL_SPRINTLN(buf, len)       \
   file.write(buf, len);           \
   file.println()
 
@@ -191,6 +192,9 @@ Logger::InitializationError Logger::Initialize() {
     return;                                                          \
   }
 
+constexpr const char* TS_FORMAT         = "[%02hu:%02hhu:%02hhu:%02hhu.%03hu] ";
+constexpr std::size_t TS_FORMAT_MAX_LEN = 20;
+
 int FormatTimestamp(char* buffer, std::size_t bufferSize, std::uint64_t millis) {
   std::uint64_t seconds = millis / 1000;
   millis -= seconds * 1000;
@@ -206,13 +210,14 @@ int FormatTimestamp(char* buffer, std::size_t bufferSize, std::uint64_t millis) 
 
   return snprintf(buffer,
                   bufferSize,
-                  "[%02hu:%02hhu:%02hhu:%02hhu.%03hu] ",
+                  TS_FORMAT,
                   static_cast<std::uint16_t>(days),
                   static_cast<std::uint8_t>(hours),
                   static_cast<std::uint8_t>(minutes),
                   static_cast<std::uint8_t>(seconds),
                   static_cast<std::uint16_t>(millis));
 }
+
 int PrintTimestamp(FsFile& file, std::uint64_t millis) {
   char buffer[32];
   int tsLen = FormatTimestamp(buffer, sizeof(buffer), millis);
@@ -225,89 +230,99 @@ void Logger::vprintlnf(const char* format, va_list args) {
   std::uint64_t milli = millis();
   GET_FILE
 
-  char buffer[64];
-  char* ptr = buffer;
+  ResizableBuffer<char, 64> buffer = ResizableBuffer<char, 64>();
 
-  int tsLen = FormatTimestamp(buffer, sizeof(buffer), milli);
-  if (tsLen <= 0) return;
-  int logLen = vsnprintf(buffer + tsLen, sizeof(buffer) - tsLen, format, args);
+  int tsLen = FormatTimestamp(buffer.ptr(), buffer.size(), milli);
+  if (tsLen <= 0) {
+    file.close();
+    return;
+  }
+  int logLen = vsnprintf(buffer.ptr() + tsLen, buffer.size() - tsLen, format, args);
 
   int len = tsLen + logLen;
-  if (len > static_cast<int>(sizeof(buffer)) - 1) {
-    ptr = new char[len + 1];
-    if (!ptr) {
+  if (len > static_cast<int>(buffer.size()) - 1) {
+    buffer.resize(len + 1);
+
+    tsLen = FormatTimestamp(buffer.ptr(), len + 1, milli);
+    if (tsLen <= 0) {
+      file.close();
       return;
     }
 
-    tsLen = FormatTimestamp(ptr, len + 1, milli);
-    if (tsLen <= 0) return;
-    logLen = vsnprintf(ptr + tsLen, len + 1, format, args);
-    len    = tsLen + logLen;
+    logLen = vsnprintf(buffer.ptr() + tsLen, len + 1, format, args);
+
+    len = tsLen + logLen;
   }
 
-  LOGGER_PRINTSLN(ptr, len);
-
-  if (ptr != buffer) {
-    delete[] ptr;
-  }
+  LOGGER_SPRINTLN(buffer.ptr(), len);
 
   file.close();
 }
+
 void Logger::printlnf(const char* format, ...) {
   std::uint64_t milli = millis();
   GET_FILE
 
-  char buffer[64];
-  char* ptr = buffer;
+  ResizableBuffer<char, 64> buffer = ResizableBuffer<char, 64>();
 
-  int tsLen = FormatTimestamp(buffer, sizeof(buffer), milli);
-  if (tsLen <= 0) return;
+  int tsLen = FormatTimestamp(buffer.ptr(), buffer.size(), milli);
+  if (tsLen <= 0) {
+    file.close();
+    return;
+  }
 
   va_list args;
   va_start(args, format);
-  int logLen = vsnprintf(buffer + tsLen, sizeof(buffer) - tsLen, format, args);
+  int logLen = vsnprintf(buffer.ptr() + tsLen, buffer.size() - tsLen, format, args);
   va_end(args);
 
   int len = tsLen + logLen;
-  if (len > static_cast<int>(sizeof(buffer)) - 1) {
-    ptr = new char[len + 1];
-    if (!ptr) {
+  if (len > static_cast<int>(buffer.size()) - 1) {
+    buffer.resize(len + 1);
+
+    tsLen = FormatTimestamp(buffer.ptr(), len + 1, milli);
+    if (tsLen <= 0) {
+      file.close();
       return;
     }
 
-    tsLen = FormatTimestamp(ptr, len + 1, milli);
-    if (tsLen <= 0) return;
     va_start(args, format);
-    logLen = vsnprintf(ptr + tsLen, len + 1, format, args);
+    logLen = vsnprintf(buffer.ptr() + tsLen, len + 1, format, args);
     va_end(args);
+
     len = tsLen + logLen;
   }
 
-  LOGGER_PRINTSLN(ptr, len);
-
-  if (ptr != buffer) {
-    delete[] ptr;
-  }
+  LOGGER_SPRINTLN(buffer.ptr(), len);
 
   file.close();
 }
+
 void Logger::println(const String& message) {
   std::uint64_t milli = millis();
   GET_FILE
   int tsLen = PrintTimestamp(file, milli);
-  if (tsLen <= 0) return;
+  if (tsLen <= 0) {
+    file.close();
+    return;
+  }
   LOGGER_PRINTLN(message);
   file.close();
 }
+
 void Logger::println(const char* message) {
   if (message == nullptr || message[0] == '\0') return;
   std::uint64_t milli = millis();
   GET_FILE
   int tsLen = PrintTimestamp(file, milli);
-  if (tsLen <= 0) return;
+  if (tsLen <= 0) {
+      file.close();
+      return;
+  }
   LOGGER_PRINTLN(message);
   file.close();
 }
+
 void Logger::println() {
   GET_FILE
   LOGGER_PRINTLN();
@@ -321,6 +336,7 @@ constexpr char hexfmtnibble(std::uint8_t data) {
   }
   return 'A' + (data - 10);
 }
+
 std::size_t hexfmt(char* buffer, std::size_t bufferLen, const std::uint8_t* data, std::size_t size) {
   const std::size_t hexlen = size * 2;
 
@@ -336,85 +352,49 @@ std::size_t hexfmt(char* buffer, std::size_t bufferLen, const std::uint8_t* data
   return hexlen;
 }
 
-void Logger::printhexln(const std::uint8_t* data, std::size_t size) {
+void _printhexln(const char* message, const std::uint8_t* data, std::size_t size) {
   if (data == nullptr || size <= 0 || size > 4096) {
     return;
   }
+
   std::uint64_t milli = millis();
   GET_FILE
 
-  char buffer[64];
-  char* ptr = buffer;
-
-  int tsLen = FormatTimestamp(buffer, sizeof(buffer), milli);
-  if (tsLen <= 0) return;
-  int hexLen = size * 2;
-  int len    = tsLen + hexLen + 2;
-
-  if (len > static_cast<int>(sizeof(buffer)) - 1) {
-    ptr = new char[len + 1];
-    if (!ptr) {
-      return;
-    }
-
-    tsLen = FormatTimestamp(ptr, len + 1, milli);
-    if (tsLen <= 0) return;
-    hexLen = hexfmt(ptr + tsLen, len + 1, data, size);
-  } else {
-    hexLen = hexfmt(ptr + tsLen, sizeof(ptr) - tsLen, data, size);
+  std::size_t strLen = 0;
+  if (message != nullptr) {
+    strLen = std::strlen(message);
   }
-  ptr[tsLen + hexLen + 0] = '\r';
-  ptr[tsLen + hexLen + 1] = '\n';
-  len                     = tsLen + hexLen + 2;
 
-  LOGGER_PRINTS(buffer, len);
+  std::size_t hexLen     = size * 2;
+  std::size_t bufferSize = TS_FORMAT_MAX_LEN + strLen + hexLen + 2;
+  char* buffer           = new char[bufferSize];
 
-  if (ptr != buffer) {
-    delete[] ptr;
+  int tsLen = FormatTimestamp(buffer, bufferSize, milli);
+  if (tsLen <= 0 || static_cast<std::size_t>(tsLen) > TS_FORMAT_MAX_LEN) {
+    delete[] buffer;
+    file.close();
+    return;
   }
+
+  if (message != nullptr) {
+    std::memcpy(buffer + tsLen, message, strLen);
+  }
+  hexfmt(buffer + tsLen + strLen, bufferSize - tsLen, data, size);
+  buffer[tsLen + strLen + hexLen + 0] = '\r';
+  buffer[tsLen + strLen + hexLen + 1] = '\n';
+  buffer[tsLen + strLen + hexLen + 2] = '\0';
+
+  LOGGER_PRINTS(buffer, tsLen + strLen + hexLen + 2);
+
+  delete[] buffer;
 
   file.close();
 }
+
+void Logger::printhexln(const std::uint8_t* data, std::size_t size) {
+  _printhexln(nullptr, data, size);
+}
+
 void Logger::printhexln(const char* message, const std::uint8_t* data, std::size_t size) {
-  if (message == nullptr || data == nullptr || size <= 0 || size > 4096) {
-    return;
-  }
-  std::uint64_t milli = millis();
-  GET_FILE
-
-  char buffer[64];
-  char* ptr = buffer;
-
-  int tsLen = FormatTimestamp(buffer, sizeof(buffer), milli);
-  if (tsLen <= 0) return;
-  int msgLen = strlen(message);
-  int hexLen = size * 2;
-  int len    = tsLen + msgLen + hexLen + 2;
-
-  if (len > static_cast<int>(sizeof(buffer)) - 1) {
-    ptr = new char[len + 1];
-    if (!ptr) {
-      return;
-    }
-
-    tsLen = FormatTimestamp(ptr, len + 1, milli);
-    if (tsLen <= 0) return;
-    memcpy(ptr + tsLen, message, msgLen);
-    hexLen = hexfmt(ptr + tsLen + msgLen, len + 1, data, size);
-  } else {
-    memcpy(ptr + tsLen, message, msgLen);
-    hexLen = hexfmt(ptr + tsLen + msgLen, sizeof(ptr) - tsLen - msgLen, data, size);
-  }
-
-  ptr[tsLen + msgLen + hexLen + 0] = '\r';
-  ptr[tsLen + msgLen + hexLen + 1] = '\n';
-  len                              = tsLen + msgLen + hexLen + 2;
-
-  LOGGER_PRINTS(ptr, len);
-
-  if (ptr != buffer) {
-    delete[] ptr;
-  }
-
-  file.close();
+  _printhexln(message, data, size);
 }
