@@ -8,13 +8,9 @@
   if (LOG_TO_SERIAL) {         \
     Serial.begin(__VA_ARGS__); \
   }
-#define SERIAL_PRINT(buf) \
-  if (LOG_TO_SERIAL) {    \
-    Serial.print(buf);    \
-  }
-#define SERIAL_PRINTS(buf, len) \
-  if (LOG_TO_SERIAL) {          \
-    Serial.write(buf, len);     \
+#define SERIAL_WRITE(buf, len) \
+  if (LOG_TO_SERIAL) {         \
+    Serial.write(buf, len);    \
   }
 #define SERIAL_PRINTF(...)      \
   if (LOG_TO_SERIAL) {          \
@@ -34,21 +30,12 @@
     Serial.println();             \
   }
 
-#define LOGGER_PRINT(buf) \
-  SERIAL_PRINT(buf)       \
-  file.print(buf)
-#define LOGGER_PRINTS(buf, len) \
-  SERIAL_PRINTS(buf, len)       \
+#define LOGGER_WRITE(buf, len) \
+  SERIAL_WRITE(buf, len)       \
   file.write(buf, len)
-#define LOGGER_PRINTF(...)   \
-  SERIAL_PRINTF(__VA_ARGS__) \
-  file.printf(__VA_ARGS__)
 #define LOGGER_PRINTLN(buf) \
   SERIAL_PRINTLN(buf)       \
   file.println(buf)
-#define LOGGER_PRINTELN() \
-  SERIAL_PRINTELN(buf)    \
-  file.println()
 #define LOGGER_SPRINTLN(buf, len) \
   SERIAL_SPRINTLN(buf, len)       \
   file.write(buf, len);           \
@@ -222,7 +209,7 @@ int PrintTimestamp(FsFile& file, std::uint64_t millis) {
   char buffer[32];
   int tsLen = FormatTimestamp(buffer, sizeof(buffer), millis);
   if (tsLen <= 0) return tsLen;
-  LOGGER_PRINTS(buffer, tsLen);
+  LOGGER_WRITE(buffer, tsLen);
   return tsLen;
 }
 
@@ -316,8 +303,8 @@ void Logger::println(const char* message) {
   GET_FILE
   int tsLen = PrintTimestamp(file, milli);
   if (tsLen <= 0) {
-      file.close();
-      return;
+    file.close();
+    return;
   }
   LOGGER_PRINTLN(message);
   file.close();
@@ -384,7 +371,7 @@ void _printhexln(const char* message, const std::uint8_t* data, std::size_t size
   buffer[tsLen + strLen + hexLen + 1] = '\n';
   buffer[tsLen + strLen + hexLen + 2] = '\0';
 
-  LOGGER_PRINTS(buffer, tsLen + strLen + hexLen + 2);
+  LOGGER_WRITE(buffer, tsLen + strLen + hexLen + 2);
 
   delete[] buffer;
 

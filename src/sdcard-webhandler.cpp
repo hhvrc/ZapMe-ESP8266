@@ -46,6 +46,7 @@ bool SDCardWebHandler::canHandle(HTTPMethod method, const String& uri) {
 }
 
 bool SDCardWebHandler::handle(WebServerType& server, HTTPMethod requestMethod, const String& requestUri) {
+  (void)requestMethod;
   const char* contentType;
 
   char cPath[256];

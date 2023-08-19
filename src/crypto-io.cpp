@@ -73,10 +73,8 @@ void Initialize() {
   if (s_cryptCtx) {
     return;
   }
-  Logger::println("Allocating CryptoContext");
   s_cryptCtx = std::make_unique<CryptoContext>();
 
-  Logger::println("Fetching CryptoConfig from EEPROM");
   EEPROM.begin(sizeof(CryptoConfig));
   const CryptoConfig* constConf = reinterpret_cast<const CryptoConfig*>(EEPROM.getDataPtr());
 
@@ -93,7 +91,7 @@ void Initialize() {
 }
 
 CryptoFileReader::CryptoFileReader(const char* path)
-  : _buffer(), _iv(), _bufferRead(0), _bufferWritten(0), _file(SDCard::GetInstance()->open(path, O_RDONLY)) {
+  : _buffer(), _iv(), _bufferRead(0), _bufferWritten(0), _file(SDCard::GetInstance()->open(path, O_READ)) {
   std::size_t fileSize = _file.size();
   if (!_file.isReadable() || fileSize < FILE_ID_SIZE + _iv.size() || (fileSize & 0xFULL) != 0) {
     Logger::printlnf("[CryptoFileReader] Cannot read file \"%s\", readable: %s, size: %d, aligned: %s",
@@ -204,7 +202,7 @@ std::size_t CryptoFileReader::_readIntoBuffer() {
     std::uint8_t paddingSize = _buffer[_bufferWritten - 1];
     for (std::size_t i = 1; i <= paddingSize; ++i) {
       if (_buffer[_bufferWritten - i] != paddingSize) {
-        Logger::printlnf("[CryptoFileReader] Padding is invalid");
+        Logger::println("[CryptoFileReader] Padding is invalid");
         close();
         return 0;
       }
@@ -305,8 +303,10 @@ void CryptoFileWriter::_flush(bool final) {
   std::size_t paddedLength  = (_bufferWritten & ~0x0FULL) + 0x10;
   std::size_t paddingLength = paddedLength - _bufferWritten;
 
-  // Write, encrypt and flush buffer
+  // Add padding
   std::memset(_buffer.data() + _bufferWritten, paddingLength, paddingLength);
+
+  // Encrypt buffer
   s_cryptCtx->encrypt(_buffer.data(), paddedLength, _iv);
   _file.write(_buffer.data(), paddedLength);
   _fileWritten += paddedLength;

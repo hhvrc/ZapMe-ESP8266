@@ -116,7 +116,15 @@ void enableAP() {
   const char* apCredsFileName = "/config/ap-creds.bin";
 
   auto readFile = CryptoFileReader(apCredsFileName);
-  if (!readFile) {
+  if (readFile) {
+    auto err = deserializeMsgPack(doc, readFile);
+    if (err) {
+      Logger::printlnf("Failed to deserialize config file: %s", err.c_str());
+      return;
+    }
+  } else {
+    readFile.close();
+
     Logger::println("Failed to open config file for reading, creating default config");
     auto writeFile = CryptoFileWriter(apCredsFileName);
     if (!writeFile) {
@@ -132,17 +140,9 @@ void enableAP() {
       return;
     }
 
-    doc.clear();
     writeFile.close();
-
-    readFile = CryptoFileReader(apCredsFileName);
   }
 
-  auto err = deserializeMsgPack(doc, readFile);
-  if (err) {
-    Logger::printlnf("Failed to deserialize config file: %s", err.c_str());
-    return;
-  }
 
   const char* ssid = doc["ssid"];
   const char* psk  = doc["psk"];
