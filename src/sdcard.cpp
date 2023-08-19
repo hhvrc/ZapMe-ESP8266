@@ -61,7 +61,7 @@ FsFile SDCard::open(const char* path, oflag_t oflag) {
     return FsFile();
   }
 
-  if (oflag & O_CREAT && _sd.exists(path)) {
+  if (oflag & O_CREAT) {
     std::size_t parentLen = std::strrchr(path, '/') - path;
 
     ResizableBuffer<char, 64> buffer = ResizableBuffer<char, 64>(parentLen + 1);
