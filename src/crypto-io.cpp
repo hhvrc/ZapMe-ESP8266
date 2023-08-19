@@ -25,12 +25,14 @@ struct CryptoConfig {
     crc.update(key.data(), key.size());
     return crc.finalize();
   }
+
   void initialize() {
     std::memcpy(header.data(), EEPROM_HEADER.data(), EEPROM_HEADER.size());
     CryptoUtils::RandomBytes(fileID);
     CryptoUtils::RandomBytes(key);
     checksum = calculateChecksum();
   }
+
   bool validate() const {
     if (!std::equal(header.begin(), header.end(), EEPROM_HEADER.begin())) {
       Logger::println("[CryptoConfig] Invalid header");
@@ -46,6 +48,7 @@ struct CryptoConfig {
     return true;
   }
 };
+
 struct CryptoContext {
   br_aes_big_cbcenc_keys encKeys;
   br_aes_big_cbcdec_keys decKeys;
@@ -54,9 +57,11 @@ struct CryptoContext {
   bool verifyFileID(const std::array<std::uint8_t, FILE_ID_SIZE>& fileID) const {
     return std::memcmp(fileID.data(), this->fileID.data(), FILE_ID_SIZE) == 0;
   }
+
   void encrypt(std::uint8_t* data, std::size_t length, std::array<std::uint8_t, AES256_IV_SZ>& iv) {
     br_aes_big_cbcenc_run(&encKeys, iv.data(), data, length);
   }
+
   void decrypt(std::uint8_t* data, std::size_t length, std::array<std::uint8_t, AES256_IV_SZ>& iv) {
     br_aes_big_cbcdec_run(&decKeys, iv.data(), data, length);
   }
@@ -88,7 +93,7 @@ void Initialize() {
 }
 
 CryptoFileReader::CryptoFileReader(const char* path)
-    : _buffer(), _iv(), _bufferRead(0), _bufferWritten(0), _file(SDCard::GetInstance()->open(path, O_RDONLY)) {
+  : _buffer(), _iv(), _bufferRead(0), _bufferWritten(0), _file(SDCard::GetInstance()->open(path, O_RDONLY)) {
   std::size_t fileSize = _file.size();
   if (!_file.isReadable() || fileSize < FILE_ID_SIZE + _iv.size() || (fileSize & 0xFULL) != 0) {
     Logger::printlnf("[CryptoFileReader] Cannot read file \"%s\", readable: %s, size: %d, aligned: %s",
@@ -119,9 +124,11 @@ CryptoFileReader::CryptoFileReader(const char* path)
   // Fill buffer
   _readIntoBuffer();
 }
+
 CryptoFileReader::~CryptoFileReader() {
   close();
 }
+
 int CryptoFileReader::read() {
   if (!this->operator bool()) {
     return -1;
@@ -133,6 +140,7 @@ int CryptoFileReader::read() {
 
   return _buffer[_bufferRead++];
 }
+
 std::size_t CryptoFileReader::readBytes(char* data, std::size_t length) {
   if (!this->operator bool()) {
     return 0;
@@ -154,6 +162,7 @@ std::size_t CryptoFileReader::readBytes(char* data, std::size_t length) {
 
   return nRead;
 }
+
 void CryptoFileReader::_alignBuffer() {
   if (_bufferRead > 0) {
     Logger::printlnf("[CryptoFileReader] Moving %d bytes by %d bytes", _bufferUsed(), _bufferRead);
@@ -162,6 +171,7 @@ void CryptoFileReader::_alignBuffer() {
     _bufferRead = 0;
   }
 }
+
 std::size_t CryptoFileReader::_readIntoBuffer() {
   if (!_file.isReadable()) {
     return 0;
@@ -205,6 +215,7 @@ std::size_t CryptoFileReader::_readIntoBuffer() {
 
   return fileSizeLeft;
 }
+
 bool CryptoFileReader::_ensureReadBuffer(std::size_t length) {
   if (_bufferUsed() >= length) {
     return true;
@@ -237,9 +248,11 @@ CryptoFileWriter::CryptoFileWriter(const char* path)
   _file.write(_iv.data(), _iv.size());
   _fileWritten += s_cryptCtx->fileID.size() + _iv.size();
 }
+
 CryptoFileWriter::~CryptoFileWriter() {
   close();
 }
+
 std::size_t CryptoFileWriter::write(std::uint8_t data) {
   if (!_file.isWritable()) {
     return 0;
@@ -251,6 +264,7 @@ std::size_t CryptoFileWriter::write(std::uint8_t data) {
 
   return 1;
 }
+
 std::size_t CryptoFileWriter::write(const std::uint8_t* data, std::size_t length) {
   if (!_file.isWritable()) {
     return 0;
@@ -269,6 +283,7 @@ std::size_t CryptoFileWriter::write(const std::uint8_t* data, std::size_t length
 
   return length;
 }
+
 void CryptoFileWriter::_flush(bool final) {
   if (_bufferWritten == 0 || !_file.isWritable()) {
     return;

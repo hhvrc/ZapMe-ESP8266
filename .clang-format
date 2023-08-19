@@ -13,7 +13,7 @@ ColumnLimit: 128
 ShortNamespaceLines: 2
 AccessModifierOffset: -2
 ContinuationIndentWidth: 2
-ConstructorInitilizerWidth: 2
+ConstructorInitializerIndentWidth: 2
 BracedInitializerIndentWidth: 2
 CommentPragmas: "^ IWYU pragma:"
 LineEnding: LF
@@ -61,11 +61,6 @@ AlignConsecutiveMacros:
   AcrossComments: false
   AlignCompound: true
   PadOperators: true
-AlignConsecutiveShortCaseStatements:
-  Enabled: true
-  AcrossEmptyLines: false
-  AcrossComments: false
-  AlignCaseColons: false
 AlignEscapedNewlines: Left
 AlignOperands: AlignAfterOperator
 AlignTrailingComments:
@@ -125,7 +120,7 @@ IndentCaseLabels: true
 IndentExternBlock: NoIndent
 IndentGotoLabels: false
 IndentPPDirectives: None
-IndentRequires: false
+IndentRequiresClause: false
 IndentWrappedFunctionNames: true
 InsertNewlineAtEOF: true
 InsertTrailingCommas: Wrapped
@@ -146,7 +141,6 @@ PackConstructorInitializers: NextLine
 
 PointerAlignment: Left
 ReferenceAlignment: Left
-QualifierOrder: ['const', 'inline', 'static', 'friend', 'constexpr', 'volatile', 'restrict', 'type'];
 
 RawStringFormats:
   - Language: Cpp
@@ -158,7 +152,7 @@ RawStringFormats:
 ReflowComments: true
 RequiresClausePosition: OwnLine
 RequiresExpressionIndentation: OuterScope
-SeperateDefinitionBlocks: true
+SeparateDefinitionBlocks: Always
 SortUsingDeclarations: LexicographicNumeric
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false
@@ -195,21 +189,11 @@ SpacesInParensOptions:
   InEmptyParentheses: false
   Other: false
 SpacesInSquareBrackets: false
-# Wtf is this?
-TypeNames: []
 VerilogBreakBetweenInstancePorts: true
-
 
 # JSON stuff
 BreakArrays: false
 SpaceBeforeJsonColon: false
-
-# Potentially dangerously options
-InsertBraces: false 
-RemoveSemicolon: false
-RemoveBracesLLVM: false
-RemoveParentheses: Leave
-QualifierAlignment: Leave
 
 # Macro stuff, don't need to touch this (yet?)
 # MacroBlockBegin: ""

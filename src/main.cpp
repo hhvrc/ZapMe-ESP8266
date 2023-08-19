@@ -31,6 +31,7 @@ void InitializeLED() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 }
+
 void InitializeSDCard() {
   auto sd = SDCard::GetInstance();
   switch (sd->error()) {
@@ -44,6 +45,7 @@ void InitializeSDCard() {
       blinkHalt(3);
   }
 }
+
 void InitializeLogger() {
   auto loggerError = Logger::Initialize();
   switch (loggerError) {
@@ -57,6 +59,7 @@ void InitializeLogger() {
       blinkHalt(6);
   }
 }
+
 void InitializeWiFi() {
   Logger::println("Configuring WiFi");
   WiFi.disconnect(true);
@@ -77,6 +80,7 @@ void InitializeWiFi() {
 
   WiFi.mode(WIFI_STA);
 }
+
 void InitializeMDNS() {
   Logger::println("Starting mDNS");
   if (!MDNS.begin("zapme")) {
@@ -84,6 +88,7 @@ void InitializeMDNS() {
     // mDNS is not critical, so we can continue
   }
 }
+
 void InitializeNTP() {
   Logger::println("Initializing NTP client");
   ntpClient = NtpClient();
@@ -108,10 +113,12 @@ void enableAP() {
   Logger::println("Enabling access point");
   StaticJsonDocument<256> doc;
 
-  auto readFile = CryptoFileReader("/config/wifi-ap.conf.bin");
+  const char* apCredsFileName = "/config/ap-creds.bin";
+
+  auto readFile = CryptoFileReader(apCredsFileName);
   if (!readFile) {
     Logger::println("Failed to open config file for reading, creating default config");
-    auto writeFile = CryptoFileWriter("/config/wifi-ap.conf.bin");
+    auto writeFile = CryptoFileWriter(apCredsFileName);
     if (!writeFile) {
       Logger::println("Failed to open config file for writing");
       return;
@@ -128,7 +135,7 @@ void enableAP() {
     doc.clear();
     writeFile.close();
 
-    readFile = CryptoFileReader("/config/wifi-ap.conf.bin");
+    readFile = CryptoFileReader(apCredsFileName);
   }
 
   auto err = deserializeMsgPack(doc, readFile);
@@ -201,6 +208,7 @@ void handleScanResult(std::int8_t networksFound) {
   }
   */
 }
+
 bool startWiFiScan() {
   switch (WiFi.status()) {
     case WL_CONNECTED:
@@ -240,6 +248,7 @@ bool startWiFiScan() {
 
   return true;
 }
+
 void processWiFiScanning() {
   std::int8_t scanResult = WiFi.scanComplete();
   if (scanResult < 0) {
@@ -250,6 +259,7 @@ void processWiFiScanning() {
 }
 
 bool highPerformanceMode = false;
+
 void SetHighPerformanceMode(bool enabled) {
   if (enabled == highPerformanceMode) {
     return;

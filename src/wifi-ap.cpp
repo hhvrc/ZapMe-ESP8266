@@ -38,6 +38,7 @@ bool WiFi_AP::Start(const char* ssid, const char* psk) {
     Logger::printlnf("[WiFi_AP] CHANNEL: %d", WiFi.channel());
     Logger::printlnf("[WiFi_AP] PHY: %d", WiFi.getPhyMode());
     Logger::printlnf("[WiFi_AP] RSSI: %d", WiFi.RSSI());
+
     return false;
   }
 
