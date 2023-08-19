@@ -4,35 +4,28 @@
 
 std::weak_ptr<SDCard> s_instance = std::weak_ptr<SDCard>();
 
-template<std::size_t N>
-bool _ensureDir(SdFs& sd, ResizableBuffer<char, N>& path, std::size_t pathLen) {
+bool _ensureDir(SdFs& sd, char* path, std::size_t pathLen) {
   if (pathLen == 0) {
     return true;
   }
 
-  char* begin = path.ptr();
-  char* end   = begin + pathLen;
+  char* end = path + pathLen;
 
-  char* nextSlash = *begin == '/' ? begin + 1 : begin;
-  while (true) {
-    nextSlash  = std::find(nextSlash, end, '/');
-    *nextSlash = '\0';
+  for (char* pos = *path == '/' ? path + 1 : path; pos < end; pos++) {
+    pos  = std::find(pos, end, '/');
+    *pos = '\0';
 
-    if (!sd.exists(begin)) {
-      if (!sd.mkdir(begin)) {
+    if (!sd.exists(path)) {
+      if (!sd.mkdir(path)) {
         // TODO: SERIAL LOG ERROR
         return false;
       }
     }
 
-    *nextSlash = '/';
-
-    if (nextSlash >= end) {
-      return true;
-    }
-
-    nextSlash++;
+    *pos = '/';
   }
+
+  return true;
 }
 
 SDCard::SDCard() : _sd(), _error(SDCardError::None) {
@@ -77,7 +70,7 @@ FsFile SDCard::open(const char* path, oflag_t oflag) {
     buffer.ptr()[parentLen] = '\0';
 
     if (!_sd.mkdir(buffer.ptr())) {
-      if (!_ensureDir(_sd, buffer, parentLen)) {
+      if (!_ensureDir(_sd, buffer.ptr(), parentLen)) {
         // TODO: SERIAL LOG ERROR
         return FsFile();
       }
@@ -114,7 +107,7 @@ bool SDCard::mkdir(const char* path) {
 
   std::memcpy(buffer.ptr(), path, pathLen);
 
-  return _ensureDir(_sd, buffer, pathLen);
+  return _ensureDir(_sd, buffer.ptr(), pathLen);
 }
 
 bool SDCard::remove(const char* path) {
