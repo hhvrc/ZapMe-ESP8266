@@ -2,8 +2,9 @@
 
 #include "logger.hpp"
 
-#include <array>
 #include <ESP8266WiFi.h>
+
+#include <array>
 
 struct NtpServerRecord {
   const char* hostName;

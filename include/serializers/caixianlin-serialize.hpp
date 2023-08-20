@@ -1,6 +1,9 @@
+#pragma once
+
+#include <nonstd/span.hpp>
+
 #include <cstddef>
 #include <cstdint>
-#include <nonstd/span.hpp>
 
 enum class Channel : int {
   Channel1 = 0,  // Will shift the bit out og the integer, making it 0

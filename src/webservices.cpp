@@ -5,8 +5,9 @@
 
 #include <ArduinoJson.h>
 #include <ESP8266WebServer.h>
-#include <memory>
 #include <WebSocketsServer.h>
+
+#include <memory>
 
 constexpr std::uint16_t HTTP_PORT      = 80;
 constexpr std::uint16_t WEBSOCKET_PORT = 81;

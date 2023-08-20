@@ -5,7 +5,6 @@
 #include <ESP8266WebServer.h>
 
 class SDCardWebHandler : public RequestHandler {
-  std::shared_ptr<SDCard> _sd;
   using WebServerType = esp8266webserver::ESP8266WebServerTemplate<WiFiServer>;
 
 public:
@@ -16,4 +15,7 @@ public:
 
   SDCardWebHandler(SDCardWebHandler const&) = delete;
   void operator=(SDCardWebHandler const&)   = delete;
+
+private:
+  SDCard _sd;
 };

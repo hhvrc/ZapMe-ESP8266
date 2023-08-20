@@ -4,10 +4,16 @@
 #include "logger.hpp"
 #include "sdcard.hpp"
 
-#include <array>
+#include <bearssl/bearssl_block.h>
 #include <CRC32.h>
 #include <EEPROM.h>
+#include <SdFat.h>
+
+#include <array>
+#include <cstdint>
 #include <memory>
+
+static_assert(AES256_BLK_SZ == br_aes_big_BLOCK_SIZE, "AES256 block size mismatch");
 
 constexpr std::size_t FILE_ID_SIZE = 16;
 std::array<char, 4> EEPROM_HEADER  = {'A', 'E', 'S', 'K'};
@@ -91,7 +97,7 @@ void Initialize() {
 }
 
 CryptoFileReader::CryptoFileReader(const char* path)
-  : _buffer(), _iv(), _bufferRead(0), _bufferWritten(0), _file(SDCard::GetInstance()->open(path, O_READ)) {
+  : _buffer(), _iv(), _bufferRead(0), _bufferWritten(0), _file(SDCard::Open(path, O_READ)) {
   std::size_t fileSize = _file.size();
   if (!_file.isReadable() || fileSize < FILE_ID_SIZE + _iv.size() || (fileSize & 0xFULL) != 0) {
     Logger::printlnf("[CryptoFileReader] Cannot read file \"%s\", readable: %s, size: %d, aligned: %s",
@@ -107,7 +113,7 @@ CryptoFileReader::CryptoFileReader(const char* path)
 
   // Verify file ID
   std::array<std::uint8_t, FILE_ID_SIZE> fileID;
-  _file.readBytes(fileID.data(), fileID.size());
+  _file.read(fileID);
   if (!s_cryptCtx->verifyFileID(fileID)) {
     Logger::printlnf(
       "[CryptoFileReader] File \"%s\" has different file ID, encryption keys are different and decryption will fail. Aborting.",
@@ -117,7 +123,7 @@ CryptoFileReader::CryptoFileReader(const char* path)
   }
 
   // Read IV
-  _file.readBytes(_iv.data(), _iv.size());
+  _file.read(_iv);
 
   // Fill buffer
   _readIntoBuffer();
@@ -163,7 +169,6 @@ std::size_t CryptoFileReader::readBytes(char* data, std::size_t length) {
 
 void CryptoFileReader::_alignBuffer() {
   if (_bufferRead > 0) {
-    Logger::printlnf("[CryptoFileReader] Moving %d bytes by %d bytes", _bufferUsed(), _bufferRead);
     std::memmove(_buffer.data(), _buffer.data() + _bufferRead, _bufferUsed());
     _bufferWritten -= _bufferRead;
     _bufferRead = 0;
@@ -177,8 +182,8 @@ std::size_t CryptoFileReader::_readIntoBuffer() {
 
   // Check buffer space
   std::size_t fileSize     = _file.size();
-  std::size_t curPos       = _file.curPosition();
-  std::size_t fileSizeLeft = fileSize - curPos;
+  std::size_t position     = _file.position();
+  std::size_t fileSizeLeft = fileSize - position;
 
   std::size_t toRead = std::min(_bufferFree(), fileSizeLeft) & ~0xFULL;
 
@@ -194,7 +199,7 @@ std::size_t CryptoFileReader::_readIntoBuffer() {
   _alignBuffer();
 
   // Read data from stream, add padding and encrypt
-  _file.readBytes(_buffer.data(), toRead);
+  _file.read(_buffer.data(), toRead);
   s_cryptCtx->decrypt(_buffer.data(), toRead, _iv);
   _bufferWritten += toRead;
 
@@ -232,7 +237,7 @@ bool CryptoFileReader::_ensureReadBuffer(std::size_t length) {
 }
 
 CryptoFileWriter::CryptoFileWriter(const char* path)
-    : _buffer(), _iv(), _bufferWritten(0), _fileWritten(0), _file(SDCard::GetInstance()->open(path, O_RDWR | O_CREAT)) {
+  : _buffer(), _iv(), _bufferWritten(0), _fileWritten(0), _file(SDCard::Open(path, O_CREAT | O_TRUNC | O_WRITE)) {
   if (!_file.isWritable()) {
     Logger::printlnf("[CryptoFileWriter] File %s is not writable", path);
     return;
@@ -240,10 +245,25 @@ CryptoFileWriter::CryptoFileWriter(const char* path)
 
   Initialize();
 
-  // Write file ID and IV to file
+  std::size_t nWritten;
+
+  // Write file ID to file
   CryptoUtils::RandomBytes(_iv);
-  _file.write(s_cryptCtx->fileID.data(), s_cryptCtx->fileID.size());
-  _file.write(_iv.data(), _iv.size());
+  nWritten = _file.write(s_cryptCtx->fileID);
+  if (nWritten != s_cryptCtx->fileID.size()) {
+    Logger::println("[CryptoFileWriter::CryptoFileWriter()] Failed to write file ID to file");
+    close();
+    return;
+  }
+
+  // Write IV to file
+  nWritten = _file.write(_iv.data(), _iv.size());
+  if (nWritten != _iv.size()) {
+    Logger::println("[CryptoFileWriter::CryptoFileWriter()] Failed to write IV to file");
+    close();
+    return;
+  }
+
   _fileWritten += s_cryptCtx->fileID.size() + _iv.size();
 }
 
@@ -256,7 +276,7 @@ std::size_t CryptoFileWriter::write(std::uint8_t data) {
     return 0;
   }
 
-  _flush(false);
+  flush(false);
 
   _buffer[_bufferWritten++] = data;
 
@@ -270,7 +290,7 @@ std::size_t CryptoFileWriter::write(const std::uint8_t* data, std::size_t length
 
   const std::uint8_t* dataEnd = data + length;
   while (data < dataEnd) {
-    _flush(false);
+    flush(false);
 
     std::size_t toWrite = std::min(static_cast<std::size_t>(dataEnd - data), _buffer.size() - _bufferWritten);
     std::memcpy(_buffer.data() + _bufferWritten, data, toWrite);
@@ -282,21 +302,31 @@ std::size_t CryptoFileWriter::write(const std::uint8_t* data, std::size_t length
   return length;
 }
 
-void CryptoFileWriter::_flush(bool final) {
-  if (_bufferWritten == 0 || !_file.isWritable()) {
-    return;
+bool CryptoFileWriter::flush(bool closeFile) {
+  bool bufferEmpty = _bufferWritten == 0;
+  bool bufferFull  = _bufferWritten == _buffer.size();
+
+  if ((bufferEmpty || !bufferFull) && !closeFile) {
+    return true;
   }
 
-  // Buffer is full, encrypt and write
-  if (_bufferWritten == _buffer.size()) {
+  if (!_file.isWritable()) {
+    return false;
+  }
+
+  if (bufferFull) {
+    Logger::println("[CryptoFileWriter::_flush(bool)] Buffer is full, encrypting and writing");
     s_cryptCtx->encrypt(_buffer.data(), _buffer.size(), _iv);
-    _file.write(_buffer.data(), _buffer.size());
+    std::size_t nWritten = _file.write(_buffer.data(), _buffer.size());
+    if (nWritten != _buffer.size()) {
+      Logger::printlnf("[CryptoFileWriter::_flush(bool)] Failed to write buffer to file: %d != %d", nWritten, _buffer.size());
+    }
     _fileWritten += _buffer.size();
     _bufferWritten = 0;
   }
 
-  if (!final) {
-    return;
+  if (!closeFile) {
+    return true;
   }
 
   // Calculate padding
@@ -308,15 +338,16 @@ void CryptoFileWriter::_flush(bool final) {
 
   // Encrypt buffer
   s_cryptCtx->encrypt(_buffer.data(), paddedLength, _iv);
-  _file.write(_buffer.data(), paddedLength);
-  _fileWritten += paddedLength;
 
-  // Truncate file to written length
-  _file.sync();
-  if (_file.size() > _fileWritten && !_file.truncate(_fileWritten)) {
-    Logger::printlnf("[CryptoFileWriter] Failed to truncate file to %d bytes", _fileWritten);
+  // Write buffer to file
+  std::size_t nWritten = _file.write(_buffer.data(), paddedLength);
+  _fileWritten += nWritten;
+  if (nWritten != paddedLength) {
+    Logger::printlnf("[CryptoFileWriter::_flush(bool)] Failed to write buffer to file: %d != %d", nWritten, _buffer.size());
+    _file.close();
+    return false;
   }
 
   // We are done, close the file
-  _file.close();
+  return _file.close();
 }

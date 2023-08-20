@@ -33,16 +33,9 @@ void InitializeLED() {
 }
 
 void InitializeSDCard() {
-  auto sd = SDCard::GetInstance();
-  switch (sd->error()) {
-    case SDCard::SDCardError::None:
-      break;
-    case SDCard::SDCardError::InitializationFailed:
-      blinkHalt(1);
-    case SDCard::SDCardError::RootDirectoryNotFound:
-      blinkHalt(2);
-    default:
-      blinkHalt(3);
+  SDCard sd = SDCard();
+  if (!sd.ok()) {
+    blinkHalt(1);
   }
 }
 
@@ -52,11 +45,11 @@ void InitializeLogger() {
     case Logger::InitializationError::None:
       break;
     case Logger::InitializationError::SDCardError:
-      blinkHalt(4);
+      blinkHalt(2);
     case Logger::InitializationError::FileSystemError:
-      blinkHalt(5);
+      blinkHalt(3);
     default:
-      blinkHalt(6);
+      blinkHalt(4);
   }
 }
 
@@ -140,30 +133,34 @@ void enableAP() {
       return;
     }
 
-    writeFile.close();
+    if (!writeFile.close()) {
+      Logger::println("Failed to save config file");
+      return;
+    }
+
+    Logger::println("Config file loaded");
+
+    const char* ssid = doc["ssid"];
+    const char* psk  = doc["psk"];
+
+    if (ssid == nullptr || psk == nullptr) {
+      Logger::println("Config file is missing ssid and/or psk");
+      return;
+    }
+
+    Logger::printlnf("Starting access point with SSID %s", ssid);
+
+    if (!WiFi_AP::Start(ssid, psk)) {
+      Logger::println("Failed to start access point");
+      return;
+    }
+
+    Logger::println("Access point started, starting web services");
+
+    WebServices::Start();
+
+    Logger::println("Web services started");
   }
-
-
-  const char* ssid = doc["ssid"];
-  const char* psk  = doc["psk"];
-
-  if (ssid == nullptr || psk == nullptr) {
-    Logger::println("Config file is missing ssid and/or psk");
-    return;
-  }
-
-  Logger::printlnf("Starting access point with SSID %s", ssid);
-
-  if (!WiFi_AP::Start(ssid, psk)) {
-    Logger::println("Failed to start access point");
-    return;
-  }
-
-  Logger::println("Access point started, starting web services");
-
-  WebServices::Start();
-
-  Logger::println("Web services started");
 }
 
 void handleScanResult(std::int8_t networksFound) {

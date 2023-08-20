@@ -18,7 +18,7 @@ BracedInitializerIndentWidth: 2
 CommentPragmas: "^ IWYU pragma:"
 LineEnding: LF
 
-IncludeBlocks: Regroup
+IncludeBlocks: Preserve
 SortIncludes: CaseInsensitive
 # IncludeCategories:
 #   - Regex: '^"(llvm|llvm-c|clang|clang-c)/'
@@ -145,14 +145,14 @@ ReferenceAlignment: Left
 RawStringFormats:
   - Language: Cpp
     Delimiters:
-      - 'cc'
-      - 'cpp'
+      - "cc"
+      - "cpp"
     BasedOnStyle: google
-    CanonicalDelimiter: 'cc'
+    CanonicalDelimiter: "cc"
 ReflowComments: true
 RequiresClausePosition: OwnLine
 RequiresExpressionIndentation: OuterScope
-SeparateDefinitionBlocks: Always
+SeparateDefinitionBlocks: Leave
 SortUsingDeclarations: LexicographicNumeric
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false

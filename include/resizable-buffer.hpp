@@ -1,3 +1,6 @@
+
+#pragma once
+
 #include <cstdint>
 
 template<typename T, std::size_t N>

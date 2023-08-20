@@ -33,13 +33,22 @@
 #define LOGGER_WRITE(buf, len) \
   SERIAL_WRITE(buf, len)       \
   file.write(buf, len)
-#define LOGGER_PRINTLN(buf) \
-  SERIAL_PRINTLN(buf)       \
-  file.println(buf)
+#define LOGGER_WRITELN(buf, len) \
+  SERIAL_WRITE(buf, len)         \
+  file.write(buf, len);          \
+  file.write("\r\n", 2)
+#define LOGGER_PRINTLN(buf)          \
+  SERIAL_PRINTLN(buf)                \
+  file.write(buf, std::strlen(buf)); \
+  file.write("\r\n", 2)
+#define LOGGER_PRINTELN() \
+  SERIAL_PRINTELN()       \
+  file.write("\r\n", 2)
+
 #define LOGGER_SPRINTLN(buf, len) \
   SERIAL_SPRINTLN(buf, len)       \
   file.write(buf, len);           \
-  file.println()
+  file.write("\r\n", 2)
 
 char* LogPath = nullptr;
 
@@ -57,23 +66,20 @@ bool InitializeLogPath() {
     return true;
   }
 
-  auto sd = SDCard::GetInstance();
-  if (sd == nullptr) {
+  SDCard sd = SDCard();
+  if (!sd.ok()) {
     return false;
   }
 
   // Get the name of the latest bucket
-  FsFile logDir = sd->open("/log", O_READ);
+  auto logDir = sd.open("/log", O_READ);
   if (!logDir) {
-    sd->mkdir("/log");
-    logDir = sd->open("/log", O_READ);
-    if (!logDir) {
-      SERIAL_PRINTLN("[Logger] Failed to create log directory");
-      return false;
-    }
+    SERIAL_PRINTLN("[Logger] Failed to create log directory");
+    return false;
   }
+
   while (true) {
-    FsFile file = logDir.openNextFile();
+    auto file = logDir.openNextFile();
     if (!file) {
       break;
     }
@@ -82,7 +88,6 @@ bool InitializeLogPath() {
       file.getName(FileName, sizeof(FileName));
       std::uint32_t index = 0;
       if (sscanf(FileName, "%u", &index) > 0) {
-        SERIAL_PRINTF("[Logger] Found bucket: %u\n", index);
         if (index > BucketIndex) {
           BucketIndex = index;
         }
@@ -90,32 +95,28 @@ bool InitializeLogPath() {
     } else {
       SERIAL_PRINTF("[Logger] Unexpected file in log directory: %s\n", FileName);
     }
-    file.close();
   }
+
   logDir.close();
+
   if (BucketIndex == 0) {
     BucketIndex = 1;
   }
 
   // Get the id of the latest log file
   sprintf(FileName, "/log/%u", BucketIndex);
-  logDir = sd->open(FileName, O_READ);
+  logDir = sd.open(FileName, O_READ);
   if (!logDir) {
-    sd->mkdir(FileName);
-    logDir = sd->open(FileName, O_READ);
-    if (!logDir) {
-      SERIAL_PRINTLN("[Logger] Failed to create log bucket");
-      return false;
-    }
+    SERIAL_PRINTLN("[Logger] Failed to create log bucket");
+    return false;
   }
   while (true) {
-    FsFile file = logDir.openNextFile();
+    auto file = logDir.openNextFile();
     if (!file) {
       break;
     }
 
     if (file.isFile()) {
-      SERIAL_PRINTF("[Logger] Found log file: %s\n", FileName);
       file.getName(FileName, sizeof(FileName));
       std::uint32_t index = 0;
       if (sscanf(FileName, "log_%u.txt", &index) > 0) {
@@ -126,7 +127,6 @@ bool InitializeLogPath() {
     } else {
       SERIAL_PRINTF("[Logger] Unexpected directory in log bucket: %s\n", FileName);
     }
-    file.close();
   }
   logDir.close();
 
@@ -152,8 +152,8 @@ Logger::InitializationError Logger::Initialize() {
   SERIAL_BEGIN(115'200);
   SERIAL_PRINTELN();
 
-  auto sd = SDCard::GetInstance();
-  if (!sd->ok()) {
+  SDCard sd = SDCard();
+  if (!sd.ok()) {
     return InitializationError::SDCardError;
   }
 
@@ -170,12 +170,8 @@ Logger::InitializationError Logger::Initialize() {
       return;                                                        \
     }                                                                \
   }                                                                  \
-  auto sd = SDCard::GetInstance();                                   \
-  if (!sd->ok()) {                                                   \
-    return;                                                          \
-  }                                                                  \
-  FsFile file = sd->open(LogPath, O_CREAT | O_APPEND | O_WRITE);     \
-  if (!file.isWritable()) {                                          \
+  auto file = SDCard::Open(LogPath, O_CREAT | O_APPEND | O_WRITE);   \
+  if (!file || !file.isWritable()) {                                 \
     return;                                                          \
   }
 
@@ -205,7 +201,7 @@ int FormatTimestamp(char* buffer, std::size_t bufferSize, std::uint64_t millis) 
                   static_cast<std::uint16_t>(millis));
 }
 
-int PrintTimestamp(FsFile& file, std::uint64_t millis) {
+int PrintTimestamp(SDCardFile& file, std::uint64_t millis) {
   char buffer[32];
   int tsLen = FormatTimestamp(buffer, sizeof(buffer), millis);
   if (tsLen <= 0) return tsLen;
@@ -221,7 +217,6 @@ void Logger::vprintlnf(const char* format, va_list args) {
 
   int tsLen = FormatTimestamp(buffer.ptr(), buffer.size(), milli);
   if (tsLen <= 0) {
-    file.close();
     return;
   }
   int logLen = vsnprintf(buffer.ptr() + tsLen, buffer.size() - tsLen, format, args);
@@ -232,7 +227,6 @@ void Logger::vprintlnf(const char* format, va_list args) {
 
     tsLen = FormatTimestamp(buffer.ptr(), len + 1, milli);
     if (tsLen <= 0) {
-      file.close();
       return;
     }
 
@@ -242,8 +236,6 @@ void Logger::vprintlnf(const char* format, va_list args) {
   }
 
   LOGGER_SPRINTLN(buffer.ptr(), len);
-
-  file.close();
 }
 
 void Logger::printlnf(const char* format, ...) {
@@ -254,7 +246,6 @@ void Logger::printlnf(const char* format, ...) {
 
   int tsLen = FormatTimestamp(buffer.ptr(), buffer.size(), milli);
   if (tsLen <= 0) {
-    file.close();
     return;
   }
 
@@ -269,7 +260,6 @@ void Logger::printlnf(const char* format, ...) {
 
     tsLen = FormatTimestamp(buffer.ptr(), len + 1, milli);
     if (tsLen <= 0) {
-      file.close();
       return;
     }
 
@@ -281,8 +271,6 @@ void Logger::printlnf(const char* format, ...) {
   }
 
   LOGGER_SPRINTLN(buffer.ptr(), len);
-
-  file.close();
 }
 
 void Logger::println(const String& message) {
@@ -290,11 +278,9 @@ void Logger::println(const String& message) {
   GET_FILE
   int tsLen = PrintTimestamp(file, milli);
   if (tsLen <= 0) {
-    file.close();
     return;
   }
-  LOGGER_PRINTLN(message);
-  file.close();
+  LOGGER_WRITELN(message.c_str(), message.length());
 }
 
 void Logger::println(const char* message) {
@@ -303,17 +289,14 @@ void Logger::println(const char* message) {
   GET_FILE
   int tsLen = PrintTimestamp(file, milli);
   if (tsLen <= 0) {
-    file.close();
     return;
   }
   LOGGER_PRINTLN(message);
-  file.close();
 }
 
 void Logger::println() {
   GET_FILE
-  LOGGER_PRINTLN();
-  file.close();
+  LOGGER_PRINTELN();
 }
 
 constexpr char hexfmtnibble(std::uint8_t data) {
@@ -359,7 +342,6 @@ void _printhexln(const char* message, const std::uint8_t* data, std::size_t size
   int tsLen = FormatTimestamp(buffer, bufferSize, milli);
   if (tsLen <= 0 || static_cast<std::size_t>(tsLen) > TS_FORMAT_MAX_LEN) {
     delete[] buffer;
-    file.close();
     return;
   }
 
@@ -374,8 +356,6 @@ void _printhexln(const char* message, const std::uint8_t* data, std::size_t size
   LOGGER_WRITE(buffer, tsLen + strLen + hexLen + 2);
 
   delete[] buffer;
-
-  file.close();
 }
 
 void Logger::printhexln(const std::uint8_t* data, std::size_t size) {

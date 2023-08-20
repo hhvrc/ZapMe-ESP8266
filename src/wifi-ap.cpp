@@ -24,20 +24,6 @@ bool WiFi_AP::Start(const char* ssid, const char* psk) {
 
   if (!WiFi.softAP(ssid, psk)) {
     Logger::printlnf("[WiFi_AP] Failed to start access point with SSID %s", ssid);
-    Logger::printlnf("[WiFi_AP] STATUS: %d", WiFi.status());
-    Logger::printlnf("[WiFi_AP] MODE: %d", WiFi.getMode());
-    Logger::printlnf("[WiFi_AP] SSID: %s", WiFi.SSID());
-    Logger::printlnf("[WiFi_AP] PSK: %s", WiFi.psk());
-    Logger::printlnf("[WiFi_AP] BSSID: %s", WiFi.BSSIDstr());
-    Logger::printlnf("[WiFi_AP] MAC: %s", WiFi.macAddress());
-    Logger::printlnf("[WiFi_AP] HOSTNAME: %s", WiFi.hostname());
-    Logger::printlnf("[WiFi_AP] IP: %s", WiFi.localIP().toString());
-    Logger::printlnf("[WiFi_AP] SUBNET: %s", WiFi.subnetMask().toString());
-    Logger::printlnf("[WiFi_AP] GATEWAY: %s", WiFi.gatewayIP().toString());
-    Logger::printlnf("[WiFi_AP] DNS: %s", WiFi.dnsIP().toString());
-    Logger::printlnf("[WiFi_AP] CHANNEL: %d", WiFi.channel());
-    Logger::printlnf("[WiFi_AP] PHY: %d", WiFi.getPhyMode());
-    Logger::printlnf("[WiFi_AP] RSSI: %d", WiFi.RSSI());
 
     return false;
   }

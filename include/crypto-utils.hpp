@@ -1,7 +1,8 @@
 #pragma once
 
-#include <cstdint>
 #include <nonstd/span.hpp>
+
+#include <cstdint>
 
 class CryptoUtils {
   CryptoUtils() = delete;

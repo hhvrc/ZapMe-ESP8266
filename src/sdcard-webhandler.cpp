@@ -39,10 +39,10 @@ const char* GetMime(const char* extension) {
   return "application/octet-stream";
 }
 
-SDCardWebHandler::SDCardWebHandler() : _sd(SDCard::GetInstance()) { }
+SDCardWebHandler::SDCardWebHandler() : _sd() { }
 
 bool SDCardWebHandler::canHandle(HTTPMethod method, const String& uri) {
-  return method == HTTP_GET && uri != "/ws" && _sd->ok();
+  return method == HTTP_GET && uri != "/ws" && _sd.ok();
 }
 
 bool SDCardWebHandler::handle(WebServerType& server, HTTPMethod requestMethod, const String& requestUri) {
@@ -69,7 +69,7 @@ bool SDCardWebHandler::handle(WebServerType& server, HTTPMethod requestMethod, c
     }
   }
 
-  FsFile file = _sd->open(cPath, O_READ);
+  auto file = _sd.open(cPath, O_READ);
   if (!file) {
     server.send(404, "text/plain", "File not found");
     return true;
@@ -77,7 +77,7 @@ bool SDCardWebHandler::handle(WebServerType& server, HTTPMethod requestMethod, c
 
   server.sendHeader("Cache-Control", "max-age=86400");
 
-  server.send(200, contentType, file, file.size());
+  server.send(200, contentType, file.GetStream(), file.size());
 
   return true;
 }

@@ -1,9 +1,10 @@
 #pragma once
 
-#include <cstdarg>
-#include <cstdint>
 #include <nonstd/span.hpp>
 #include <WString.h>
+
+#include <cstdarg>
+#include <cstdint>
 
 class Logger {
   Logger() = delete;

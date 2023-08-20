@@ -1,8 +1,9 @@
 #pragma once
 
-#include <cstdint>
 #include <nonstd/span.hpp>
 #include <WString.h>
+
+#include <cstdint>
 
 class StringHelpers {
   StringHelpers() = delete;

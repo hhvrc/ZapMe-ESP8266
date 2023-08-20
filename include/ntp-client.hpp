@@ -1,8 +1,9 @@
 #pragma once
 
+#include <WiFiUdp.h>
+
 #include <cstdint>
 #include <ctime>
-#include <WiFiUdp.h>
 
 class NtpClient {
   static constexpr std::size_t NTP_PORT                    = 123;
