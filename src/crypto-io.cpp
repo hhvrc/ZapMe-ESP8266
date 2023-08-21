@@ -109,11 +109,28 @@ CryptoFileReader::CryptoFileReader(const char* path)
     return;
   }
 
-  Initialize();
+  std::size_t nRead;
 
   // Verify file ID
   std::array<std::uint8_t, FILE_ID_SIZE> fileID;
-  _file.read(fileID);
+  nRead = _file.read(fileID);
+  if (nRead != fileID.size()) {
+    Logger::println("[CryptoFileReader::CryptoFileReader()] Failed to read file ID");
+    close();
+    return;
+  }
+
+  // Read IV
+  nRead = _file.read(_iv);
+  if (nRead != _iv.size()) {
+    Logger::println("[CryptoFileReader::CryptoFileReader()] Failed to read IV");
+    close();
+    return;
+  }
+
+
+  Initialize();
+
   if (!s_cryptCtx->verifyFileID(fileID)) {
     Logger::printlnf(
       "[CryptoFileReader] File \"%s\" has different file ID, encryption keys are different and decryption will fail. Aborting.",
@@ -121,9 +138,6 @@ CryptoFileReader::CryptoFileReader(const char* path)
     close();
     return;
   }
-
-  // Read IV
-  _file.read(_iv);
 
   // Fill buffer
   _readIntoBuffer();
@@ -248,7 +262,6 @@ CryptoFileWriter::CryptoFileWriter(const char* path)
   std::size_t nWritten;
 
   // Write file ID to file
-  CryptoUtils::RandomBytes(_iv);
   nWritten = _file.write(s_cryptCtx->fileID);
   if (nWritten != s_cryptCtx->fileID.size()) {
     Logger::println("[CryptoFileWriter::CryptoFileWriter()] Failed to write file ID to file");
@@ -257,6 +270,7 @@ CryptoFileWriter::CryptoFileWriter(const char* path)
   }
 
   // Write IV to file
+  CryptoUtils::RandomBytes(_iv);
   nWritten = _file.write(_iv.data(), _iv.size());
   if (nWritten != _iv.size()) {
     Logger::println("[CryptoFileWriter::CryptoFileWriter()] Failed to write IV to file");
