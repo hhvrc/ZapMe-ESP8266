@@ -31,7 +31,7 @@ public:
     return readBytes(data.data(), data.size_bytes());
   }
 
-  void close() { _file.close(); }
+  bool close() { return _file.close(); }
 
   operator bool() const { return _file.isReadable() || _bufferRead < _bufferWritten; }
 

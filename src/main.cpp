@@ -102,65 +102,81 @@ void setup() {
   enableAP();
 }
 
+bool ReadEncryptedMsgPackFile(const char* name, DynamicJsonDocument& doc) {
+  auto file = CryptoFileReader(name);
+  if (!file) {
+    Logger::printlnf("Failed to open \"%s\"", name);
+    return false;
+  }
+  
+  auto err = deserializeMsgPack(doc, file);
+  if (err) {
+    Logger::printlnf("Failed to deserialize \"%s\": %s", name, err.c_str());
+    return false;
+  }
+
+  return file.close();
+}
+
+bool WriteEncryptedMsgPackFile(const char* name, const DynamicJsonDocument& doc) {
+  auto file = CryptoFileWriter(name);
+  if (!file) {
+    Logger::printlnf("Failed to open \"%s\"", name);
+    return false;
+  }
+  
+  std::size_t nRead = serializeMsgPack(doc, file);
+  if (nRead == 0) {
+    Logger::printlnf("Failed to serialize \"%s\"", name);
+    return false;
+  }
+
+  return file.close();
+}
+
 void enableAP() {
   Logger::println("Enabling access point");
-  StaticJsonDocument<256> doc;
 
-  const char* apCredsFileName = "/config/ap-creds.bin";
+  const char* apCredsFileName = "/config/ap-credss.bin";
 
-  auto readFile = CryptoFileReader(apCredsFileName);
-  if (readFile) {
-    auto err = deserializeMsgPack(doc, readFile);
-    if (err) {
-      Logger::printlnf("Failed to deserialize config file: %s", err.c_str());
-      return;
-    }
+  DynamicJsonDocument doc = DynamicJsonDocument(256);
+
+  if (ReadEncryptedMsgPackFile(apCredsFileName, doc))
+  {
+    Logger::println("Config file loaded");
   } else {
-    readFile.close();
+    doc.clear();
 
-    Logger::println("Failed to open config file for reading, creating default config");
-    auto writeFile = CryptoFileWriter(apCredsFileName);
-    if (!writeFile) {
-      Logger::println("Failed to open config file for writing");
-      return;
-    }
-
-    doc["ssid"] = "ZapMe";
+    doc["ssid"] = "TestAP";
     doc["psk"]  = "ZapMe12345";
 
-    if (serializeMsgPack(doc, writeFile) == 0) {
-      Logger::println("Failed to serialize config file");
-      return;
+    if (WriteEncryptedMsgPackFile(apCredsFileName, doc)) {
+      Logger::println("Config file saved");
+    } else {
+      Logger::println("Unable to read or write to SDCard!");
     }
-
-    if (!writeFile.close()) {
-      Logger::println("Failed to save config file");
-      return;
-    }
-
-    Logger::println("Config file loaded");
-
-    const char* ssid = doc["ssid"];
-    const char* psk  = doc["psk"];
-
-    if (ssid == nullptr || psk == nullptr) {
-      Logger::println("Config file is missing ssid and/or psk");
-      return;
-    }
-
-    Logger::printlnf("Starting access point with SSID %s", ssid);
-
-    if (!WiFi_AP::Start(ssid, psk)) {
-      Logger::println("Failed to start access point");
-      return;
-    }
-
-    Logger::println("Access point started, starting web services");
-
-    WebServices::Start();
-
-    Logger::println("Web services started");
   }
+
+  const char* ssid = doc["ssid"];
+  const char* psk  = doc["psk"];
+
+  if (ssid == nullptr || psk == nullptr) {
+    Logger::println("Config file is missing ssid and/or psk");
+    return;
+  }
+
+  Logger::printlnf("Starting access point with SSID %s", ssid);
+
+  if (!WiFi_AP::Start(ssid, psk)) {
+    Logger::println("Failed to start access point");
+    return;
+  }
+
+  Logger::println("Access point started, starting web services");
+
+  WebServices::Start();
+
+  Logger::println("Web services started");
 }
 
 void handleScanResult(std::int8_t networksFound) {
